@@ -185,7 +185,12 @@ export class WhatsAppMetaService {
     } catch (error: any) {
       logger.error({
         error: error.response?.data || error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
         to,
+        apiUrl: this.apiUrl,
+        hasToken: !!this.accessToken,
+        tokenPrefix: this.accessToken?.substring(0, 10),
       }, '❌ Failed to send message via Meta API');
       throw error;
     }
