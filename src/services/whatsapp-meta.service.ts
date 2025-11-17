@@ -120,6 +120,9 @@ export class WhatsAppMetaService {
       const phoneNumber = message.from;
       const messageText = message.text.body;
 
+      console.log('📱 RECEIVED FROM:', phoneNumber);
+      console.log('💬 TEXT:', messageText);
+      
       logger.info('📱 Message received', {
         from: phoneNumber,
         text: messageText.substring(0, 50),
@@ -170,6 +173,10 @@ export class WhatsAppMetaService {
    */
   async sendMessage(to: string, text: string): Promise<void> {
     try {
+      console.log('🔄 SENDING TO:', to);
+      console.log('📝 MESSAGE:', text.substring(0, 150));
+      console.log('🌐 API URL:', this.apiUrl);
+      
       logger.info('🔄 Calling Meta API...', {
         to: to,
         toLength: to.length,
