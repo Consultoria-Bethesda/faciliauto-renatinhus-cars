@@ -1,11 +1,43 @@
+import axios from 'axios';
+
+const JINA_API_URL = 'https://api.jina.ai/v1/embeddings';
+
 export async function initChromaDB(): Promise<void> {
-  console.log('ℹ️  ChromaDB desabilitado, usando busca SQL');
+  console.log('ℹ️  Usando Jina AI para embeddings (grátis)');
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  // Embeddings desabilitados - retorna array vazio
-  // O sistema vai usar busca SQL como fallback
-  return generateMockEmbedding(text);
+  const apiKey = process.env.JINA_API_KEY;
+
+  // Se não tem API key, usa mock
+  if (!apiKey || apiKey === 'sk-mock-key') {
+    console.warn('⚠️  JINA_API_KEY não configurada, usando mock embeddings');
+    return generateMockEmbedding(text);
+  }
+
+  try {
+    const response = await axios.post(
+      JINA_API_URL,
+      {
+        input: [text],
+        model: 'jina-embeddings-v3',
+        dimensions: 1024,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return response.data.data[0].embedding;
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar embedding com Jina AI:', error.message);
+    console.warn('⚠️  Usando mock embedding como fallback');
+    return generateMockEmbedding(text);
+  }
 }
 
 function generateMockEmbedding(text: string): number[] {
