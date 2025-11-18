@@ -35,6 +35,7 @@
     "embeddings:regenerate": "tsx src/scripts/generate-embeddings.ts regenerate",
     "embeddings:stats": "tsx src/scripts/generate-embeddings.ts stats",
     "embeddings:force": "tsx src/scripts/generate-embeddings.ts generate force",
+    "benchmark:llms": "tsx src/scripts/benchmark-llms.ts",
     "heroku-status": "heroku ps --app faciliauto-mvp",
     "heroku-logs": "heroku logs --tail --app faciliauto-mvp",
     "heroku-open": "heroku open --app faciliauto-mvp"
