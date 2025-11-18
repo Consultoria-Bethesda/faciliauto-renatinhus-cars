@@ -1,11 +1,15 @@
 import { defineConfig } from 'vitest/config';
-import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.js'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     coverage: {
       provider: 'v8',
@@ -14,7 +18,7 @@ export default defineConfig({
         'node_modules/',
         'tests/',
         'dist/',
-        '**/*.config.ts',
+        '**/*.config.*',
         '**/*.d.ts',
         '**/types/',
       ],
@@ -30,8 +34,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@tests': path.resolve(__dirname, './tests'),
+      '@': resolve(__dirname, './src'),
+      '@tests': resolve(__dirname, './tests'),
     },
   },
 });
