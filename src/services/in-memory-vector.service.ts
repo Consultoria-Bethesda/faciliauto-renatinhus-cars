@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { generateEmbedding } from '../lib/chromadb';
+import { generateEmbedding } from '../lib/embeddings';
 
 const prisma = new PrismaClient();
 
