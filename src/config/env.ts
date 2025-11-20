@@ -8,8 +8,12 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default('3000'),
   DATABASE_URL: z.string(),
   REDIS_URL: z.string().optional(),
-  OPENAI_API_KEY: z.string().default('sk-mock-key-for-development'), // Mantido para compatibilidade
-  GROQ_API_KEY: z.string().optional().default('gsk-mock-key-for-development'),
+  
+  // LLM Providers (com fallback automático)
+  OPENAI_API_KEY: z.string().default('sk-mock-key-for-development'), // Primário para LLM e Embeddings
+  GROQ_API_KEY: z.string().optional().default('gsk-mock-key-for-development'), // Fallback para LLM
+  COHERE_API_KEY: z.string().optional(), // Fallback para Embeddings
+  
   WHATSAPP_NAME: z.string().default('FaciliAuto'),
   CRM_WEBHOOK_URL: z.string().optional(),
   

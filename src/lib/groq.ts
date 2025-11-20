@@ -1,6 +1,7 @@
 import Groq from 'groq-sdk';
 import { env } from '../config/env';
 import { logger } from './logger';
+import { chatCompletion as routerChatCompletion } from './llm-router';
 
 const isMockMode = !env.GROQ_API_KEY || env.GROQ_API_KEY === 'gsk-mock-key-for-development';
 
@@ -13,6 +14,11 @@ export interface ChatMessage {
   content: string;
 }
 
+/**
+ * Chat completion com LLM Routing automático
+ * Primário: GPT-4o-mini (OpenAI)
+ * Fallback: LLaMA 3.1 8B Instant (Groq)
+ */
 export async function chatCompletion(
   messages: ChatMessage[],
   options?: {
@@ -21,58 +27,12 @@ export async function chatCompletion(
     maxTokens?: number;
   }
 ): Promise<string> {
-  // Mock mode for development without API key
-  if (isMockMode) {
-    logger.warn('🤖 Using MOCK mode (no Groq API key)');
-    
-    const userMessage = messages[messages.length - 1];
-    const content = userMessage.content.toLowerCase();
-    const systemMessage = messages.find(m => m.role === 'system')?.content.toLowerCase() || '';
-    
-    // Intent classification
-    if (systemMessage.includes('classificador') || systemMessage.includes('intenção')) {
-      if (content.includes('sim') || content.includes('quero') || content.includes('comprar') || 
-          content.includes('carro') || content.includes('veículo') || content.includes('ver')) {
-        return 'QUALIFICAR';
-      }
-      if (content.includes('vendedor') || content.includes('humano') || content.includes('falar com')) {
-        return 'HUMANO';
-      }
-      if (content.includes('dúvida') || content.includes('preço') || content.includes('quanto')) {
-        return 'DUVIDA';
-      }
-      return 'OUTRO';
-    }
-    
-    // Recommendation reasoning
-    if (content.includes('explique') || content.includes('por que') || content.includes('veículo:')) {
-      return 'Excelente custo-benefício! Atende suas necessidades de espaço e está dentro do orçamento.';
-    }
-    
-    return 'Olá! Como posso ajudar você hoje? Quer ver nossos carros disponíveis?';
-  }
-
-  try {
-    const response = await groq.chat.completions.create({
-      model: options?.model || 'llama-3.3-70b-versatile', // Modelo recomendado para conversação
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 500,
-    });
-
-    const content = response.choices[0]?.message?.content || '';
-    
-    // Log usage
-    logger.debug({
-      usage: response.usage,
-      model: response.model,
-    }, 'Groq API call');
-
-    return content;
-  } catch (error) {
-    logger.error({ error }, 'Groq API error');
-    throw error;
-  }
+  // Usar o novo LLM Router que gerencia fallback automaticamente
+  return routerChatCompletion(messages, {
+    temperature: options?.temperature,
+    maxTokens: options?.maxTokens,
+    retries: 2,
+  });
 }
 
 // Função específica para chat de vendas com prompt otimizado
@@ -108,7 +68,6 @@ ${context ? `CONTEXTO: ${context}` : ''}`;
   ];
 
   return chatCompletion(messages, {
-    model: options?.model || 'llama-3.3-70b-versatile',
     temperature: options?.temperature ?? 0.7,
     maxTokens: 300,
   });
@@ -137,7 +96,6 @@ Retorne APENAS a palavra-chave, sem explicação.`,
   ];
 
   const result = await chatCompletion(messages, {
-    model: 'llama-3.3-70b-versatile',
     temperature: 0.3,
     maxTokens: 10,
   });
@@ -175,7 +133,6 @@ Explique em uma frase por que é uma boa escolha:`,
   ];
 
   return chatCompletion(messages, {
-    model: 'llama-3.3-70b-versatile',
     temperature: 0.7,
     maxTokens: 50,
   });

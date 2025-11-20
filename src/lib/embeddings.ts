@@ -1,12 +1,11 @@
-import OpenAI from 'openai';
 import { logger } from './logger';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
-const EMBEDDING_MODEL = 'text-embedding-3-small';
-const EMBEDDING_DIMENSIONS = 1536;
+import {
+  generateEmbedding as routerGenerateEmbedding,
+  generateEmbeddingsBatch as routerGenerateEmbeddingsBatch,
+  cosineSimilarity as routerCosineSimilarity,
+  EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+} from './embedding-router';
 
 export interface EmbeddingResult {
   embedding: number[];
@@ -21,16 +20,14 @@ export interface SimilarityResult {
 }
 
 /**
- * Gera embedding para um texto usando OpenAI text-embedding-3-small
+ * Gera embedding com fallback automático
+ * Primário: OpenAI text-embedding-3-small
+ * Fallback: Cohere embed-multilingual-v3.0
  * @param text Texto para gerar embedding
  * @returns Array de números (1536 dimensões)
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY não configurada');
-    }
-
     const cleanText = text.trim();
     if (!cleanText) {
       throw new Error('Texto vazio para gerar embedding');
@@ -38,13 +35,8 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
     logger.info({ text: cleanText.substring(0, 100) }, 'Gerando embedding...');
 
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: cleanText,
-      encoding_format: 'float',
-    });
-
-    const embedding = response.data[0].embedding;
+    // Usar router que gerencia fallback automaticamente
+    const embedding = await routerGenerateEmbedding(cleanText, { retries: 2 });
 
     logger.info(
       {
@@ -62,7 +54,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Gera embeddings para múltiplos textos em batch
+ * Gera embeddings para múltiplos textos em batch com fallback
  * @param texts Array de textos
  * @returns Array de embeddings
  */
@@ -70,10 +62,6 @@ export async function generateEmbeddingsBatch(
   texts: string[]
 ): Promise<number[][]> {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY não configurada');
-    }
-
     if (texts.length === 0) {
       return [];
     }
@@ -86,13 +74,8 @@ export async function generateEmbeddingsBatch(
 
     logger.info({ count: cleanTexts.length }, 'Gerando embeddings em batch...');
 
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: cleanTexts,
-      encoding_format: 'float',
-    });
-
-    const embeddings = response.data.map((item) => item.embedding);
+    // Usar router que gerencia fallback automaticamente
+    const embeddings = await routerGenerateEmbeddingsBatch(cleanTexts, { retries: 2 });
 
     logger.info(
       {
@@ -116,28 +99,7 @@ export async function generateEmbeddingsBatch(
  * @returns Score de similaridade (0-1)
  */
 export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) {
-    throw new Error('Vetores devem ter o mesmo tamanho');
-  }
-
-  let dotProduct = 0;
-  let magnitudeA = 0;
-  let magnitudeB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    magnitudeA += a[i] * a[i];
-    magnitudeB += b[i] * b[i];
-  }
-
-  magnitudeA = Math.sqrt(magnitudeA);
-  magnitudeB = Math.sqrt(magnitudeB);
-
-  if (magnitudeA === 0 || magnitudeB === 0) {
-    return 0;
-  }
-
-  return dotProduct / (magnitudeA * magnitudeB);
+  return routerCosineSimilarity(a, b);
 }
 
 /**
