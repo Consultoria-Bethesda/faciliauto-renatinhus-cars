@@ -31,6 +31,32 @@ app.get('/privacy-policy', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'privacy-policy.html'));
 });
 
+// Reset conversation endpoint (for testing)
+app.post('/api/reset-conversation', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'phoneNumber required' });
+    }
+
+    const result = await prisma.conversation.deleteMany({
+      where: { phoneNumber }
+    });
+
+    logger.info('🗑️ Conversation reset', { phoneNumber, count: result.count });
+
+    res.json({ 
+      success: true, 
+      message: `${result.count} conversation(s) deleted`,
+      phoneNumber 
+    });
+  } catch (error: any) {
+    logger.error({ error }, 'Error resetting conversation');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Basic stats endpoint
 app.get('/stats', async (req, res) => {
   try {
