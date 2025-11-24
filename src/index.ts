@@ -26,6 +26,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Privacy Policy (required by Meta)
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'privacy-policy.html'));
+});
+
 // Basic stats endpoint
 app.get('/stats', async (req, res) => {
   try {
@@ -80,14 +85,13 @@ async function start() {
       logger.info(`✅ Database has ${vehicleCount} vehicles`);
     }
 
-    // Initialize vector store
-    logger.info('🧠 Initializing vector store...');
-    try {
-      await inMemoryVectorStore.initialize();
+    // Initialize vector store in background (non-blocking)
+    logger.info('🧠 Starting vector store initialization in background...');
+    inMemoryVectorStore.initialize().then(() => {
       logger.info(`✅ Vector store ready with ${inMemoryVectorStore.getCount()} embeddings`);
-    } catch (error) {
+    }).catch((error) => {
       logger.error({ error }, '⚠️  Vector store failed, will use SQL fallback');
-    }
+    });
 
     // Start Express server
     app.listen(PORT, () => {
