@@ -1,7 +1,9 @@
 import { ConversationState, StateUpdate, VehicleRecommendation } from '../../types/state.types';
 import { logger } from '../../lib/logger';
 import { prisma } from '../../lib/prisma';
-import { vectorSearchService, VehicleSearchCriteria } from '../../services/vector-search.service';
+import { VectorSearchService, VehicleSearchCriteria } from '../../services/vector-search.service';
+
+const vectorSearchService = new VectorSearchService();
 
 /**
  * Calculate match score between vehicle and customer profile
@@ -144,11 +146,9 @@ export async function searchNode(state: ConversationState): Promise<StateUpdate>
       budget: profile.budget,
       usage: profile.usagePattern,
       persons: profile.familySize,
-      essentialItems: profile.essentialItems || [],
       bodyType: profile.vehicleType !== 'qualquer' ? profile.vehicleType : undefined,
       year: profile.minYear,
       mileage: profile.maxKm,
-      brand: profile.preferredBrand !== 'qualquer' ? profile.preferredBrand : undefined,
     };
 
     // Use vector search service (with automatic fallback to SQL)

@@ -77,6 +77,5 @@ export async function isChromaDBAvailable(): Promise<boolean> {
 }
 
 export async function closeChromaDB(): Promise<void> {
-  openai = null;
   console.log('🔌 ChromaDB desconectado');
 }

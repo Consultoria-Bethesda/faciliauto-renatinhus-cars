@@ -19,19 +19,30 @@ interface VehicleEmbedding {
 class InMemoryVectorStore {
   private embeddings: VehicleEmbedding[] = [];
   private initialized = false;
+  private initializing = false;
 
   async initialize(): Promise<void> {
-    if (this.initialized) {
+    if (this.initialized || this.initializing) {
       return;
     }
 
-    console.log('🧠 Inicializando vector store in-memory...');
+    this.initializing = true;
+
+    // Inicializa em background sem bloquear o servidor
+    this.initializeInBackground().catch((error) => {
+      console.error('❌ Erro ao inicializar vector store:', error);
+      this.initializing = false;
+    });
+  }
+
+  private async initializeInBackground(): Promise<void> {
+    console.log('🧠 Inicializando vector store in-memory (background)...');
 
     const vehicles = await prisma.vehicle.findMany({
       where: { disponivel: true },
     });
 
-    console.log(`📊 Gerando embeddings para ${vehicles.length} veículos...`);
+    console.log(`📊 Gerando embeddings para ${vehicles.length} veículos em background...`);
 
     for (const vehicle of vehicles) {
       const description = this.buildVehicleDescription(vehicle);
@@ -52,12 +63,15 @@ class InMemoryVectorStore {
     }
 
     this.initialized = true;
+    this.initializing = false;
     console.log(`✅ Vector store pronto com ${this.embeddings.length} embeddings`);
   }
 
   async search(queryText: string, limit: number = 5): Promise<string[]> {
+    // Se não está inicializado, retorna array vazio (fallback para SQL)
     if (!this.initialized) {
-      await this.initialize();
+      console.log('⚠️  Vector store ainda não pronto, usando fallback SQL');
+      return [];
     }
 
     const queryEmbedding = await generateEmbedding(queryText);
@@ -77,8 +91,10 @@ class InMemoryVectorStore {
     queryText: string,
     limit: number = 5
   ): Promise<Array<{ vehicleId: string; score: number }>> {
+    // Se não está inicializado, retorna array vazio (fallback para SQL)
     if (!this.initialized) {
-      await this.initialize();
+      console.log('⚠️  Vector store ainda não pronto, usando fallback SQL');
+      return [];
     }
 
     const queryEmbedding = await generateEmbedding(queryText);

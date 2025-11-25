@@ -19,8 +19,8 @@
   "exclude": [
     "node_modules", 
     "dist",
-    "src/services/vector-search.service.ts",
-    "src/scripts/generate-embeddings.ts",
+    "**/*.old.ts",
+    "src/services/whatsapp.service.ts",
     "src/services/whatsapp-venom.service.ts"
   ]
 }

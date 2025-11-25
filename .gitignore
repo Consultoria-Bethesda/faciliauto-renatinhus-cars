@@ -96,3 +96,4 @@ server.log
 *_STATUS.md
 *_PASSOS_*.md
 RECOMENDACOES_*.md
+.env.save*

@@ -139,7 +139,8 @@ async function callCohereEmbedding(
   });
 
   // Cohere retorna 1024 dimensões, normalizar para 1536 para compatibilidade
-  const embedding = normalizeEmbeddingDimensions(response.embeddings.float![0], 1536);
+  const floatEmbeddings = Array.isArray(response.embeddings) ? response.embeddings[0] : response.embeddings.float![0];
+  const embedding = normalizeEmbeddingDimensions(floatEmbeddings, 1536);
 
   return {
     embedding,
@@ -185,7 +186,8 @@ async function callCohereEmbeddingBatch(
   });
 
   // Normalizar todos os embeddings para 1536 dimensões
-  const embeddings = response.embeddings.float!.map((emb) =>
+  const floatEmbeddingsBatch = Array.isArray(response.embeddings) ? response.embeddings : response.embeddings.float!;
+  const embeddings = floatEmbeddingsBatch.map((emb: number[]) =>
     normalizeEmbeddingDimensions(emb, 1536)
   );
 

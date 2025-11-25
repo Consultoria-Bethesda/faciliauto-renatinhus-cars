@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ['nodejs_20', 'npm-9_x']
+nixPkgs = ['nodejs_20']
 
 [phases.install]
 cmds = ['npm ci']
 
 [phases.build]
-cmds = ['npx prisma generate', 'npm run db:seed']
+cmds = ['npx prisma generate']
 
 [start]
-cmd = 'npx tsx src/index.ts'
+cmd = 'npm run start:prod'
