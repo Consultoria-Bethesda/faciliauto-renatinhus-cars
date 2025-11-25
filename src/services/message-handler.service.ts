@@ -141,25 +141,33 @@ export class MessageHandler {
   }
 
   private async handleGreeting(conversation: any, message: string, context: any): Promise<string> {
-    // Check if this is the FIRST interaction (no quiz context yet)
-    if (!context.quizProgress && context.quizProgress !== 0) {
-      // Update to quiz step
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { currentStep: 'quiz' },
-      });
+    // Always send greeting and start quiz
+    // Update to quiz step
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { currentStep: 'quiz' },
+    });
 
-      // Initialize quiz context
-      context.quizProgress = 0;
-      context.quizAnswers = {};
-      
-      // Save context to cache
-      const contextKey = `conversation:${conversation.id}:context`;
-      await cache.set(contextKey, JSON.stringify(context), 86400);
-      
-      // Return greeting + first question using the quiz agent's welcome message
-      return this.quizAgent.getWelcomeMessage();
-    }
+    // Initialize quiz context
+    context.quizProgress = 0;
+    context.quizAnswers = {};
+    
+    // Save context to cache
+    const contextKey = `conversation:${conversation.id}:context`;
+    await cache.set(contextKey, JSON.stringify(context), 86400);
+    
+    // Return greeting + first question
+    return `Olá! 👋 Bem-vindo à FaciliAuto!
+
+Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito.
+
+Perfeito! Vou fazer algumas perguntas rápidas para encontrar o carro ideal para você. 🎯
+
+São apenas 8 perguntas e leva menos de 2 minutos!
+
+💰 Qual seu orçamento disponível para o carro?
+
+_Exemplo: 50000 ou 50 mil_`;
 
     // For subsequent messages, identify intent
     const intent = await this.orchestrator.identifyIntent(message);
