@@ -85,15 +85,22 @@ export class RecommendationAgent {
   private calculateMatchScore(vehicle: any, answers: Record<string, any>): number {
     let score = 100;
 
-    // Budget (30% weight)
+    // Budget (30% weight) - HARD FILTER
     const preco = parseFloat(vehicle.preco);
     const budget = answers.budget;
-    const budgetDiff = Math.abs(preco - budget) / budget;
     
-    if (preco > budget * 1.2) {
-      score -= 40; // Way over budget
-    } else if (budgetDiff > 0.1) {
-      score -= Math.min(30, budgetDiff * 100); // Proportional penalty
+    // Exclude vehicles over budget (deal breaker)
+    if (preco > budget) {
+      score = 0;
+      return score;
+    }
+    
+    // Bonus for vehicles well within budget
+    const budgetUsage = preco / budget;
+    if (budgetUsage < 0.7) {
+      score += 10; // Great value
+    } else if (budgetUsage >= 0.9) {
+      score += 5; // Close to budget - maximize value
     }
 
     // Year (15% weight)
