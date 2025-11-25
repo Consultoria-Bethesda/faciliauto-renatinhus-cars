@@ -106,10 +106,11 @@ export class RecommendationAgent {
       score += 10; // Bonus for newer cars
     }
 
-    // Km (15% weight)
+    // Km (15% weight) - HARD FILTER
     const maxKm = answers.maxKm || 200000;
     if (vehicle.km > maxKm) {
-      score -= 30;
+      score = 0; // Deal breaker - exclude vehicles over max km
+      return score;
     } else if (vehicle.km < maxKm * 0.5) {
       score += 10; // Bonus for low mileage
     }
