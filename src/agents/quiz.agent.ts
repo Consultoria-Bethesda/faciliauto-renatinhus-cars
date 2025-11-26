@@ -8,48 +8,50 @@ interface QuizQuestion {
   validation?: (answer: string) => boolean;
 }
 
+const EXIT_FOOTER = '\n\n💡 _Digite "sair" ou "cancelar" para recomeçar_';
+
 const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 'budget',
-    question: '💰 Qual seu orçamento disponível para o carro?\n\n_Exemplo: 50000 ou 50 mil_',
+    question: `💰 Qual seu orçamento disponível para o carro?\n\n_Exemplo: 50000 ou 50 mil_${EXIT_FOOTER}`,
     type: 'text',
   },
   {
     id: 'usage',
-    question: '🚗 Qual será o uso principal do veículo?\n\n1️⃣ Cidade (urbano)\n2️⃣ Viagem (estrada)\n3️⃣ Trabalho\n4️⃣ Misto (cidade + viagem)\n\n_Digite o número da opção_',
+    question: `🚗 Qual será o uso principal do veículo?\n\n1️⃣ Cidade (urbano)\n2️⃣ Viagem (estrada)\n3️⃣ Trabalho\n4️⃣ Misto (cidade + viagem)\n\n_Digite o número da opção_${EXIT_FOOTER}`,
     type: 'choice',
     options: ['cidade', 'viagem', 'trabalho', 'misto'],
   },
   {
     id: 'people',
-    question: '👥 Para quantas pessoas? (passageiros + motorista)\n\n_Exemplo: 5_',
+    question: `👥 Para quantas pessoas? (passageiros + motorista)\n\n_Exemplo: 5_${EXIT_FOOTER}`,
     type: 'number',
   },
   {
     id: 'hasTradeIn',
-    question: '🔄 Você tem um carro para dar como entrada (trade-in)?\n\n_Digite "sim" ou "não"_',
+    question: `🔄 Você tem um carro para dar como entrada (trade-in)?\n\n_Digite "sim" ou "não"_${EXIT_FOOTER}`,
     type: 'choice',
     options: ['sim', 'não', 'nao'],
   },
   {
     id: 'minYear',
-    question: '📅 Ano mínimo do veículo que você aceita?\n\n_Exemplo: 2018_',
+    question: `📅 Ano mínimo do veículo que você aceita?\n\n_Exemplo: 2018_${EXIT_FOOTER}`,
     type: 'number',
   },
   {
     id: 'maxKm',
-    question: '🛣️ Quilometragem máxima que você aceita?\n\n_Exemplo: 80000 ou 80 mil_',
+    question: `🛣️ Quilometragem máxima que você aceita?\n\n_Exemplo: 80000 ou 80 mil_${EXIT_FOOTER}`,
     type: 'text',
   },
   {
     id: 'bodyType',
-    question: '🚙 Qual tipo de carroceria você prefere?\n\n1️⃣ Hatch (compacto)\n2️⃣ Sedan\n3️⃣ SUV/Crossover\n4️⃣ Picape\n5️⃣ Tanto faz\n\n_Digite o número da opção_',
+    question: `🚙 Qual tipo de carroceria você prefere?\n\n1️⃣ Hatch (compacto)\n2️⃣ Sedan\n3️⃣ SUV/Crossover\n4️⃣ Picape\n5️⃣ Tanto faz\n\n_Digite o número da opção_${EXIT_FOOTER}`,
     type: 'choice',
     options: ['hatch', 'sedan', 'suv', 'picape', 'tanto faz'],
   },
   {
     id: 'urgency',
-    question: '⏰ Quando pretende comprar?\n\n1️⃣ Urgente (esta semana)\n2️⃣ Até 1 mês\n3️⃣ Até 3 meses\n4️⃣ Só pesquisando\n\n_Digite o número da opção_',
+    question: `⏰ Quando pretende comprar?\n\n1️⃣ Urgente (esta semana)\n2️⃣ Até 1 mês\n3️⃣ Até 3 meses\n4️⃣ Só pesquisando\n\n_Digite o número da opção_${EXIT_FOOTER}`,
     type: 'choice',
     options: ['urgente', '1mes', '3meses', 'pesquisando'],
   },

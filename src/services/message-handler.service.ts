@@ -28,6 +28,13 @@ export class MessageHandler {
 
       // Use sanitized input
       const sanitizedMessage = inputValidation.sanitizedInput || message;
+      
+      // ✋ Check for exit/cancel commands
+      const exitCommands = ['sair', 'cancelar', 'recomeçar', 'reiniciar', 'voltar'];
+      if (exitCommands.some(cmd => sanitizedMessage.toLowerCase().includes(cmd))) {
+        await this.resetConversation(phoneNumber);
+        return '🔄 Conversa reiniciada!\n\nOlá! 👋 Bem-vindo à FaciliAuto!\n\nSou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗\n\nPara começar, qual é o seu nome?';
+      }
       // Get or create conversation
       let conversation = await this.getOrCreateConversation(phoneNumber);
 
@@ -138,6 +145,28 @@ export class MessageHandler {
     }
 
     return conversation;
+  }
+
+  private async resetConversation(phoneNumber: string): Promise<void> {
+    // Delete all active conversations for this phone number
+    const result = await prisma.conversation.deleteMany({
+      where: { 
+        phoneNumber,
+        status: 'active'
+      }
+    });
+    
+    // Clear cache
+    const conversations = await prisma.conversation.findMany({
+      where: { phoneNumber }
+    });
+    
+    for (const conv of conversations) {
+      const contextKey = `conversation:${conv.id}:context`;
+      await cache.del(contextKey);
+    }
+    
+    logger.info({ phoneNumber, deletedCount: result.count }, 'Conversation reset by user');
   }
 
   private async handleGreeting(conversation: any, message: string, context: any): Promise<string> {
