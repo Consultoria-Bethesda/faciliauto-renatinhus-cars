@@ -41,11 +41,12 @@ router.get('/config', (req, res) => {
 
 /**
  * POST /debug/reset-full
+ * GET /debug/reset-full?phoneNumber=XXX
  * Reset completo: DB + Cache
  */
-router.post('/reset-full', async (req, res) => {
+router.all('/reset-full', async (req, res) => {
   try {
-    const { phoneNumber } = req.body;
+    const phoneNumber = req.body.phoneNumber || req.query.phoneNumber as string;
     
     if (!phoneNumber) {
       return res.status(400).json({ error: 'phoneNumber required' });
@@ -98,9 +99,10 @@ router.post('/reset-full', async (req, res) => {
 
 /**
  * POST /debug/clear-all-cache
+ * GET /debug/clear-all-cache
  * Limpa TODO o cache Redis (usar com cuidado!)
  */
-router.post('/clear-all-cache', async (req, res) => {
+router.all('/clear-all-cache', async (req, res) => {
   try {
     // Get all keys matching conversation pattern
     const keys = await cache.keys('conversation:*');
