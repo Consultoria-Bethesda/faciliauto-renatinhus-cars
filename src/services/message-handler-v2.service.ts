@@ -5,6 +5,8 @@ import { guardrails } from './guardrails.service';
 import { conversationGraph } from '../graph/conversation-graph';
 import { ConversationState } from '../types/state.types';
 import { dataRightsService } from './data-rights.service';
+import { featureFlags } from '../lib/feature-flags';
+import { conversationalHandler } from './conversational-handler.service';
 
 /**
  * MessageHandlerV2 - New implementation using LangGraph
@@ -62,22 +64,46 @@ export class MessageHandlerV2 {
         }
       }
 
-      logger.debug({
+      // 🚦 FEATURE FLAG: Decide between conversational or quiz mode
+      const useConversational = featureFlags.shouldUseConversationalMode(phoneNumber);
+      
+      logger.info({
         conversationId: conversation.id,
+        phoneNumber: phoneNumber.substring(0, 8) + '****',
+        useConversational,
         hasCache: !!currentState,
         currentNode: currentState?.graph.currentNode,
-      }, 'Processing message with LangGraph');
+      }, 'Routing decision');
 
-      // Execute conversation graph
-      const newState = await conversationGraph.invoke({
-        conversationId: conversation.id,
-        phoneNumber,
-        message: sanitizedMessage,
-        currentState,
-      });
+      let newState: ConversationState;
+      let response: string;
 
-      // Get bot response
-      const response = conversationGraph.getLastResponse(newState);
+      if (useConversational) {
+        // 🆕 Use conversational mode (VehicleExpertAgent)
+        logger.debug({ conversationId: conversation.id }, 'Processing with Conversational mode');
+        
+        // Initialize state if new conversation
+        if (!currentState) {
+          currentState = this.initializeState(conversation.id, phoneNumber);
+        }
+        
+        const result = await conversationalHandler.handleMessage(sanitizedMessage, currentState);
+        newState = result.updatedState;
+        response = result.response;
+        
+      } else {
+        // 📋 Use legacy quiz mode (LangGraph)
+        logger.debug({ conversationId: conversation.id }, 'Processing with LangGraph (quiz mode)');
+        
+        newState = await conversationGraph.invoke({
+          conversationId: conversation.id,
+          phoneNumber,
+          message: sanitizedMessage,
+          currentState,
+        });
+
+        response = conversationGraph.getLastResponse(newState);
+      }
 
       // 🛡️ GUARDRAIL: Validate output
       const outputValidation = guardrails.validateOutput(response);
@@ -155,6 +181,36 @@ export class MessageHandlerV2 {
       logger.error({ error, phoneNumber }, 'Error handling message');
       return 'Desculpe, ocorreu um erro. Por favor, tente novamente.';
     }
+  }
+
+  /**
+   * Initialize conversation state for new conversations
+   */
+  private initializeState(conversationId: string, phoneNumber: string): ConversationState {
+    return {
+      conversationId,
+      phoneNumber,
+      messages: [],
+      quiz: {
+        currentQuestion: 1,
+        progress: 0,
+        answers: {},
+        isComplete: false,
+      },
+      profile: null,
+      recommendations: [],
+      graph: {
+        currentNode: 'greeting',
+        nodeHistory: [],
+        errorCount: 0,
+        loopCount: 0,
+      },
+      metadata: {
+        startedAt: new Date(),
+        lastMessageAt: new Date(),
+        flags: [],
+      },
+    };
   }
 
   private async getOrCreateConversation(phoneNumber: string) {

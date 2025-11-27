@@ -14,17 +14,44 @@ export interface QuizAnswers {
 }
 
 export interface CustomerProfile {
-  budget: number;
-  budgetFlexibility: number; // percentage (e.g., 10 = +/- 10%)
-  usagePattern: string;
-  familySize: number;
-  priorities: string[]; // ['economico', 'conforto', 'espaco']
-  dealBreakers: string[]; // ['alto_km', 'muito_antigo']
-  hasTradeIn: boolean;
-  minYear: number;
-  maxKm: number;
-  vehicleType: string;
-  urgency: string;
+  // Budget
+  budget?: number;
+  budgetMin?: number;
+  budgetMax?: number;
+  budgetFlexibility?: number; // percentage (e.g., 10 = +/- 10%)
+  
+  // Usage
+  usage?: 'cidade' | 'viagem' | 'trabalho' | 'misto';
+  usagePattern?: string; // legacy support
+  
+  // People
+  people?: number;
+  familySize?: number; // legacy support
+  
+  // Vehicle preferences
+  bodyType?: 'sedan' | 'hatch' | 'suv' | 'pickup' | 'minivan';
+  vehicleType?: string; // legacy support
+  transmission?: 'manual' | 'automatico';
+  fuelType?: 'gasolina' | 'flex' | 'diesel' | 'hibrido' | 'eletrico';
+  
+  // Constraints
+  minYear?: number;
+  maxKm?: number;
+  
+  // Specific preferences
+  color?: string;
+  brand?: string;
+  model?: string;
+  
+  // Priorities and deal breakers
+  priorities?: string[]; // ['economico', 'conforto', 'espaco']
+  dealBreakers?: string[]; // ['leilao', 'alta_quilometragem', 'muito_antigo']
+  
+  // Trade-in
+  hasTradeIn?: boolean;
+  
+  // Urgency
+  urgency?: 'imediato' | '1mes' | '3meses' | 'flexivel';
 }
 
 export interface VehicleRecommendation {

@@ -22,6 +22,10 @@ const envSchema = z.object({
   META_WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   META_WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional().default('faciliauto_webhook_2025'),
+  
+  // Feature Flags
+  ENABLE_CONVERSATIONAL_MODE: z.string().transform(val => val === 'true').default('false'),
+  CONVERSATIONAL_ROLLOUT_PERCENTAGE: z.string().transform(Number).default('0'), // 0-100
 });
 
 export const env = envSchema.parse(process.env);
