@@ -171,7 +171,7 @@ router.post('/update-uber', requireSecret, async (req, res) => {
   const useLLM = req.query.llm === 'true' || req.body.useLLM === true;
   
   if (useLLM) {
-    return router.handle(req, res, updateUberWithLLM);
+    return updateUberWithLLM(req, res);
   }
   
   // Legacy whitelist method (keeping for comparison)
