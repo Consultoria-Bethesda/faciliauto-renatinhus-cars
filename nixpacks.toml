@@ -2,7 +2,7 @@
 nixPkgs = ['nodejs_20']
 
 [phases.install]
-cmds = ['npm ci']
+cmds = ['rm -rf node_modules .nixpacks', 'npm ci --force']
 
 [phases.build]
 cmds = ['npx prisma generate']
