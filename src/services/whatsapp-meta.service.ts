@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { logger } from '../lib/logger';
 import { env } from '../config/env';
-import { MessageHandler } from './message-handler.service';
+import { MessageHandlerV2 } from './message-handler-v2.service';
 
 interface MetaWebhookMessage {
   from: string;
@@ -41,13 +41,13 @@ interface MetaWebhookEntry {
 }
 
 export class WhatsAppMetaService {
-  private messageHandler: MessageHandler;
+  private messageHandler: MessageHandlerV2;
   private apiUrl: string;
   private phoneNumberId: string;
   private accessToken: string;
 
   constructor() {
-    this.messageHandler = new MessageHandler();
+    this.messageHandler = new MessageHandlerV2();
     this.phoneNumberId = env.META_WHATSAPP_PHONE_NUMBER_ID || '';
     this.accessToken = env.META_WHATSAPP_TOKEN || '';
     this.apiUrl = `https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`;
