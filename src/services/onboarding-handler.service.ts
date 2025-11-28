@@ -24,13 +24,18 @@ export class OnboardingHandler {
   needsOnboarding(state: ConversationState): boolean {
     const messageCount = state.messages.filter(m => m.role === 'user').length;
     const hasName = !!(state.profile && state.profile.customerName);
+    const hasContext = !!(state.profile && state.profile.usoPrincipal);
     
     // First message always needs greeting
     if (messageCount === 0) return true;
     
-    // If no name and less than 3 messages, still in onboarding
+    // If no name, still in onboarding
     if (!hasName && messageCount < 3) return true;
     
+    // If has name but no context yet, continue onboarding
+    if (hasName && !hasContext && messageCount < 4) return true;
+    
+    // Onboarding complete
     return false;
   }
   
@@ -121,15 +126,7 @@ export class OnboardingHandler {
       // User said: "Oi, meu nome é João" or "Olá, sou a Maria"
       const response = `Olá, ${extractedName}! 😊 Prazer em conhecê-lo.
 
-Sou especialista em veículos usados aqui da Robust Car. Estou aqui para te ajudar a encontrar o carro ideal!
-
-Me conta: o que você está procurando? Por exemplo:
-• Carro para trabalhar com Uber/99
-• Veículo familiar para o dia a dia
-• Carro econômico para trabalho
-• SUV para viagens
-
-Qual é o seu caso?`;
+Me conta: o que você está procurando?`;
 
       return {
         response,
@@ -142,7 +139,7 @@ Qual é o seu caso?`;
 
 Sou especialista em veículos usados e vou te ajudar a encontrar o carro ideal.
 
-Antes de começarmos, como posso te chamar?`;
+Como posso te chamar?`;
 
     return {
       response,
@@ -169,15 +166,7 @@ Antes de começarmos, como posso te chamar?`;
     
     const response = `Prazer, ${extractedName}! 🤝
 
-Agora me conta: qual é a sua necessidade?
-
-Por exemplo:
-🚖 **Uber/99:** Carros aptos para aplicativos (ano, categoria, documentação)
-👨‍👩‍👧‍👦 **Família:** Espaço, conforto, segurança
-💼 **Trabalho:** Economia, confiabilidade
-🏞️ **Viagens:** Conforto, porta-malas, potência
-
-Qual é o seu caso?`;
+Me conta: o que você está procurando?`;
 
     return {
       response,
@@ -200,57 +189,20 @@ Qual é o seu caso?`;
     let response = '';
     
     if (context.usoPrincipal === 'uber' || context.usoPrincipal === 'aplicativo') {
-      response = `Entendi, ${customerName}! Você quer um carro para trabalhar com aplicativos. 🚖
-
-Para Uber/99, temos modelos que atendem os requisitos:
-• Ano mínimo (2012+ para Uber X, 2018+ para Black)
-• Ar-condicionado obrigatório
-• 4 portas
-• Documentação em dia
-
-Qual categoria você pretende trabalhar?
-1️⃣ **Uber X / 99Pop** (carros mais acessíveis)
-2️⃣ **Uber Comfort** (sedans médios)
-3️⃣ **Uber Black** (sedans premium)
-
-E qual seu orçamento aproximado?`;
+      response = `Legal! Para Uber/99, temos vários modelos aptos. Qual categoria você quer e qual seu orçamento?`;
       
     } else if (context.usoPrincipal === 'familia') {
-      response = `Perfeito, ${customerName}! Carro para a família. 👨‍👩‍👧‍👦
-
-Para famílias, recomendamos:
-• **SUVs:** Espaço, posição elevada, porta-malas grande
-• **Sedans:** Conforto, economia, segurança
-• **Minivans:** 7 lugares, muito espaço
-
-Quantas pessoas costumam usar o carro? E qual seu orçamento aproximado?`;
+      response = `Ótimo! Para família temos SUVs e Sedans espaçosos. Me conta mais: quantas pessoas e qual seu orçamento?`;
       
     } else if (context.usoPrincipal === 'trabalho') {
-      response = `Beleza, ${customerName}! Carro para trabalho/cidade. 💼
-
-Para trabalho, o ideal é:
-• **Hatchs:** Econômicos, fáceis de estacionar
-• **Sedans compactos:** Conforto + economia
-
-Você roda muito por dia? E qual seu orçamento aproximado?`;
+      response = `Entendi! Para trabalho temos opções econômicas. Qual seu orçamento aproximado?`;
       
     } else if (context.usoPrincipal === 'viagem') {
-      response = `Ótimo, ${customerName}! Carro para viagens. 🏞️
-
-Para viagens, recomendamos:
-• **SUVs:** Conforto, espaço, potência
-• **Sedans médios/grandes:** Porta-malas grande, estabilidade
-
-Quantas pessoas costumam viajar? E qual seu orçamento?`;
+      response = `Perfeito! Para viagens temos SUVs e Sedans confortáveis. Qual seu orçamento?`;
       
     } else {
-      // Generic response if couldn't identify specific context
-      response = `Entendi, ${customerName}! 
-
-Para te ajudar melhor, me conta:
-• Qual seu orçamento aproximado?
-• Vai usar mais para cidade ou viagens?
-• Quantas pessoas costumam usar o carro?`;
+      // Generic response - let VehicleExpert handle it
+      response = `Entendi! Me conta mais sobre o que você busca e qual seu orçamento aproximado?`;
     }
     
     return {
