@@ -197,7 +197,7 @@ export class MessageHandlerV2 {
         answers: {},
         isComplete: false,
       },
-      profile: null,
+      profile: {}, // Initialize as empty object instead of null
       recommendations: [],
       graph: {
         currentNode: 'greeting',

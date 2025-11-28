@@ -23,7 +23,7 @@ export class OnboardingHandler {
    */
   needsOnboarding(state: ConversationState): boolean {
     const messageCount = state.messages.filter(m => m.role === 'user').length;
-    const hasName = !!state.profile.customerName;
+    const hasName = !!(state.profile && state.profile.customerName);
     
     // First message always needs greeting
     if (messageCount === 0) return true;
@@ -39,8 +39,8 @@ export class OnboardingHandler {
    */
   getCurrentStep(state: ConversationState): OnboardingStep {
     const messageCount = state.messages.filter(m => m.role === 'user').length;
-    const hasName = !!state.profile.customerName;
-    const hasContext = !!(state.profile.usoPrincipal || state.profile.orcamento);
+    const hasName = !!(state.profile && state.profile.customerName);
+    const hasContext = !!(state.profile && (state.profile.usoPrincipal || state.profile.orcamento));
     
     if (messageCount === 0) {
       return {
