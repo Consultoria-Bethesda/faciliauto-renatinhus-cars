@@ -1,23 +1,73 @@
 /**
  * Script para atualizar elegibilidade de veículos para Uber/aplicativos
  * 
+ * ATUALIZADO: Usa whitelist rigorosa de modelos permitidos
+ * 
  * Critérios Uber X / 99Pop:
- * - Ano: 2012 ou mais recente
- * - Ar-condicionado: obrigatório
- * - Portas: 4 ou mais
- * - Carroceria: Sedan ou Hatch
+ * - Ano: 2012+
+ * - Modelo na whitelist Uber X
+ * - Ar-condicionado obrigatório
+ * - 4 portas
+ * - NÃO é SUV grande ou Picape
  * 
  * Critérios Uber Black / 99TOP:
- * - Ano: 2018 ou mais recente
- * - Ar-condicionado: obrigatório
- * - Portas: 4
- * - Carroceria: Sedan
- * - Marca: Premium (Honda, Toyota, VW, Chevrolet, Fiat, Nissan, Ford, Hyundai)
+ * - Ano: 2018+
+ * - Modelo na whitelist Uber Black
+ * - Sedan premium apenas
  */
 
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+// Whitelist de modelos permitidos pelo Uber
+const UBER_X_MODELS = {
+  honda: ['civic', 'city', 'fit'],
+  toyota: ['corolla', 'etios', 'yaris'],
+  chevrolet: ['onix', 'prisma', 'cruze', 'cobalt'],
+  volkswagen: ['gol', 'voyage', 'polo', 'virtus', 'jetta', 'fox'],
+  fiat: ['argo', 'cronos', 'siena', 'grand siena', 'palio', 'uno', 'mobi'],
+  ford: ['ka', 'fiesta'],
+  hyundai: ['hb20', 'hb20s', 'accent', 'elantra'],
+  nissan: ['march', 'versa', 'sentra'],
+  renault: ['logan', 'sandero', 'kwid'],
+  peugeot: ['208', '2008'],
+  citroën: ['c3', 'c4']
+};
+
+const UBER_BLACK_MODELS = {
+  honda: ['civic'],
+  toyota: ['corolla'],
+  chevrolet: ['cruze'],
+  volkswagen: ['jetta', 'passat'],
+  nissan: ['sentra']
+};
+
+// Tipos NUNCA permitidos
+const NEVER_ALLOWED_TYPES = ['suv', 'pickup', 'picape', 'minivan', 'van'];
+
+function normalizeString(str: string): string {
+  return str.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function isModelInWhitelist(marca: string, modelo: string, whitelist: any): boolean {
+  const marcaNorm = normalizeString(marca);
+  const modeloNorm = normalizeString(modelo);
+  
+  if (!whitelist[marcaNorm]) return false;
+  
+  return whitelist[marcaNorm].some((allowedModel: string) => 
+    modeloNorm.includes(allowedModel) || allowedModel.includes(modeloNorm)
+  );
+}
+
+function isNeverAllowedType(carroceria: string): boolean {
+  const carrNorm = normalizeString(carroceria);
+  return NEVER_ALLOWED_TYPES.some(type => carrNorm.includes(type));
+}
 
 async function updateUberEligibility() {
   console.log('🚖 Atualizando elegibilidade Uber...\n');
@@ -36,22 +86,23 @@ async function updateUberEligibility() {
     for (const vehicle of vehicles) {
       const updates: any = {};
       
-      // Critérios Uber X / 99Pop
-      const isUberX = 
+      // Check if vehicle type is NEVER allowed (SUV, Pickup, etc)
+      const isNeverAllowed = isNeverAllowedType(vehicle.carroceria);
+      
+      // Critérios Uber X / 99Pop (com whitelist)
+      const isUberX = !isNeverAllowed &&
         vehicle.ano >= 2012 &&
         vehicle.arCondicionado === true &&
         vehicle.portas >= 4 &&
-        (vehicle.carroceria.toLowerCase().includes('sedan') || 
-         vehicle.carroceria.toLowerCase().includes('hatch'));
+        isModelInWhitelist(vehicle.marca, vehicle.modelo, UBER_X_MODELS);
       
-      // Critérios Uber Black / 99TOP
-      const isUberBlack = 
+      // Critérios Uber Black / 99TOP (com whitelist rigorosa)
+      const isUberBlack = !isNeverAllowed &&
         vehicle.ano >= 2018 &&
         vehicle.arCondicionado === true &&
         vehicle.portas === 4 &&
         vehicle.carroceria.toLowerCase().includes('sedan') &&
-        ['honda', 'toyota', 'volkswagen', 'chevrolet', 'nissan', 'ford', 'hyundai', 'fiat']
-          .some(marca => vehicle.marca.toLowerCase().includes(marca));
+        isModelInWhitelist(vehicle.marca, vehicle.modelo, UBER_BLACK_MODELS);
       
       // Classificação de economia de combustível
       let economiaCombustivel = 'media';

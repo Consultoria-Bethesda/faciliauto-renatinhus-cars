@@ -128,13 +128,47 @@ router.post('/schema-push', requireSecret, async (req, res) => {
   }
 });
 
+// Whitelist de modelos Uber
+const UBER_X_MODELS: any = {
+  honda: ['civic', 'city', 'fit'],
+  toyota: ['corolla', 'etios', 'yaris'],
+  chevrolet: ['onix', 'prisma', 'cruze', 'cobalt'],
+  volkswagen: ['gol', 'voyage', 'polo', 'virtus', 'jetta', 'fox'],
+  fiat: ['argo', 'cronos', 'siena', 'grand siena', 'palio', 'uno', 'mobi'],
+  ford: ['ka', 'fiesta'],
+  hyundai: ['hb20', 'hb20s', 'accent', 'elantra'],
+  nissan: ['march', 'versa', 'sentra'],
+  renault: ['logan', 'sandero', 'kwid']
+};
+
+const UBER_BLACK_MODELS: any = {
+  honda: ['civic'],
+  toyota: ['corolla'],
+  chevrolet: ['cruze'],
+  volkswagen: ['jetta'],
+  nissan: ['sentra']
+};
+
+const NEVER_ALLOWED_TYPES = ['suv', 'pickup', 'picape', 'minivan', 'van'];
+
+function normalizeStr(str: string): string {
+  return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function isInWhitelist(marca: string, modelo: string, whitelist: any): boolean {
+  const marcaNorm = normalizeStr(marca);
+  const modeloNorm = normalizeStr(modelo);
+  if (!whitelist[marcaNorm]) return false;
+  return whitelist[marcaNorm].some((m: string) => modeloNorm.includes(m) || m.includes(modeloNorm));
+}
+
 /**
  * POST /admin/update-uber
- * Mark vehicles eligible for Uber/99
+ * Mark vehicles eligible for Uber/99 (with whitelist)
  */
 router.post('/update-uber', requireSecret, async (req, res) => {
   try {
-    logger.info('🚖 Admin: Updating Uber eligibility...');
+    logger.info('🚖 Admin: Updating Uber eligibility (whitelist mode)...');
     
     const vehicles = await prisma.vehicle.findMany();
     
@@ -143,24 +177,26 @@ router.post('/update-uber', requireSecret, async (req, res) => {
     let familiaCount = 0;
     let trabalhoCount = 0;
     const uberVehicles: any[] = [];
+    const rejectedVehicles: any[] = [];
     
     for (const vehicle of vehicles) {
-      // Uber X / 99Pop criteria
-      const isUberX = 
+      const carrNorm = normalizeStr(vehicle.carroceria);
+      const isNeverAllowed = NEVER_ALLOWED_TYPES.some(type => carrNorm.includes(type));
+      
+      // Uber X / 99Pop (com whitelist)
+      const isUberX = !isNeverAllowed &&
         vehicle.ano >= 2012 &&
         vehicle.arCondicionado === true &&
         vehicle.portas >= 4 &&
-        (vehicle.carroceria.toLowerCase().includes('sedan') || 
-         vehicle.carroceria.toLowerCase().includes('hatch'));
+        isInWhitelist(vehicle.marca, vehicle.modelo, UBER_X_MODELS);
       
-      // Uber Black criteria
-      const isUberBlack = 
+      // Uber Black (whitelist rigorosa)
+      const isUberBlack = !isNeverAllowed &&
         vehicle.ano >= 2018 &&
         vehicle.arCondicionado === true &&
         vehicle.portas === 4 &&
-        vehicle.carroceria.toLowerCase().includes('sedan') &&
-        ['honda', 'toyota', 'volkswagen', 'chevrolet', 'nissan', 'ford', 'hyundai', 'fiat']
-          .some(marca => vehicle.marca.toLowerCase().includes(marca));
+        carrNorm.includes('sedan') &&
+        isInWhitelist(vehicle.marca, vehicle.modelo, UBER_BLACK_MODELS);
       
       // Fuel economy
       let economiaCombustivel = 'media';
@@ -208,6 +244,14 @@ router.post('/update-uber', requireSecret, async (req, res) => {
           uberX: isUberX,
           uberBlack: isUberBlack
         });
+      } else if (!isNeverAllowed && vehicle.ano >= 2012 && vehicle.arCondicionado && vehicle.portas >= 4) {
+        // Log vehicles that meet basic criteria but not in whitelist
+        rejectedVehicles.push({
+          marca: vehicle.marca,
+          modelo: vehicle.modelo,
+          ano: vehicle.ano,
+          reason: 'Not in whitelist'
+        });
       }
     }
     
@@ -223,9 +267,10 @@ router.post('/update-uber', requireSecret, async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Uber eligibility updated successfully',
+      message: 'Uber eligibility updated (whitelist mode)',
       summary,
-      uberVehicles: uberVehicles.slice(0, 10) // First 10
+      uberVehicles: uberVehicles.slice(0, 10), // First 10
+      rejectedVehicles: rejectedVehicles.slice(0, 5) // Show some rejected
     });
     
   } catch (error: any) {
