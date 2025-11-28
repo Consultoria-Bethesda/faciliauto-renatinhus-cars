@@ -123,10 +123,63 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         extracted.extracted
       );
       
-      // 3. Detect if user asked a question (vs just answering)
+      // 3. Check if user mentioned specific model (e.g., "Spin", "Civic")
+      const hasSpecificModel = !!(extracted.extracted.model || extracted.extracted.brand);
+      
+      if (hasSpecificModel) {
+        logger.info({ 
+          brand: extracted.extracted.brand, 
+          model: extracted.extracted.model 
+        }, 'VehicleExpert: Specific model mentioned, searching directly');
+        
+        // Search for specific model
+        const recommendations = await this.getRecommendations(updatedProfile);
+        
+        if (recommendations.length > 0) {
+          const formattedResponse = await this.formatRecommendations(
+            recommendations,
+            updatedProfile,
+            context
+          );
+          
+          return {
+            response: formattedResponse,
+            extractedPreferences: extracted.extracted,
+            needsMoreInfo: [],
+            canRecommend: true,
+            recommendations,
+            nextMode: 'recommendation',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.9,
+              llmUsed: 'gpt-4o-mini'
+            }
+          };
+        } else {
+          // Model not found in inventory
+          const notFoundResponse = `Desculpe, não tenho ${extracted.extracted.model || extracted.extracted.brand} disponível no momento. 
+
+Posso te mostrar modelos similares? Me conta mais sobre o que você busca (uso, orçamento, etc).`;
+          
+          return {
+            response: notFoundResponse,
+            extractedPreferences: extracted.extracted,
+            needsMoreInfo: ['usage', 'budget'],
+            canRecommend: false,
+            nextMode: 'discovery',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.8,
+              llmUsed: 'gpt-4o-mini'
+            }
+          };
+        }
+      }
+      
+      // 4. Detect if user asked a question (vs just answering)
       const isUserQuestion = this.detectUserQuestion(userMessage);
       
-      // 4. Route based on question detection
+      // 5. Route based on question detection
       if (isUserQuestion) {
         // Answer user's question using RAG
         const answer = await this.answerQuestion(userMessage, context, updatedProfile);
@@ -145,7 +198,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         };
       }
       
-      // 5. Assess if we're ready to recommend
+      // 6. Assess if we're ready to recommend
       const readiness = this.assessReadiness(updatedProfile, context);
       
       if (readiness.canRecommend) {
@@ -172,7 +225,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         };
       }
       
-      // 6. Continue conversation - ask next contextual question
+      // 7. Continue conversation - ask next contextual question
       const nextQuestion = await this.generateNextQuestion({
         profile: updatedProfile,
         missingFields: readiness.missingRequired,

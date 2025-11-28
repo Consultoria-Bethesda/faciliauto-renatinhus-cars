@@ -22,6 +22,16 @@ REGRAS:
 3. Seja preciso e literal (não invente ou assuma)
 4. Considere sinônimos e variações de escrita
 5. Retorne APENAS JSON válido, sem texto adicional
+6. IMPORTANTE: Se usuário mencionar NOME DE MODELO (ex: Spin, Civic, Corolla), 
+   SEMPRE extraia brand e model. Conheça marcas dos modelos populares:
+   - Spin = Chevrolet
+   - Civic = Honda
+   - Corolla = Toyota
+   - Onix = Chevrolet
+   - Gol = Volkswagen
+   - HB20 = Hyundai
+   - Argo = Fiat
+   etc.
 
 CAMPOS POSSÍVEIS:
 - budget: number (valor em reais)
@@ -105,6 +115,29 @@ Saída: {
   "confidence": 0.9,
   "reasoning": "Uber Black requer sedan, ano mínimo 2018",
   "fieldsExtracted": ["usoPrincipal", "tipoUber", "bodyType", "priorities", "minYear"]
+}
+
+Entrada: "Spin" ou "Quero uma Spin" ou "Tem Chevrolet Spin?"
+Saída: {
+  "extracted": {
+    "brand": "chevrolet",
+    "model": "spin"
+  },
+  "confidence": 0.95,
+  "reasoning": "Modelo específico mencionado (Spin é da Chevrolet)",
+  "fieldsExtracted": ["brand", "model"]
+}
+
+Entrada: "Civic prata"
+Saída: {
+  "extracted": {
+    "brand": "honda",
+    "model": "civic",
+    "color": "prata"
+  },
+  "confidence": 0.9,
+  "reasoning": "Modelo específico (Civic é da Honda) e cor identificados",
+  "fieldsExtracted": ["brand", "model", "color"]
 }
 
 Entrada: "Oi, tudo bem?"
