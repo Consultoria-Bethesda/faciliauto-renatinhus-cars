@@ -136,6 +136,61 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         extracted.extracted
       );
 
+      // 2.5. Check if user is accepting alternatives after we asked about pickups
+      const wasAskedForAlternatives = context.profile?._askedForAlternatives;
+      const userAcceptsAlternatives = this.detectAffirmativeResponse(userMessage);
+      
+      if (wasAskedForAlternatives && userAcceptsAlternatives) {
+        logger.info({ userMessage }, 'User accepted alternatives to pickup');
+        
+        // Get alternative recommendations (SUVs, etc)
+        const result = await this.getRecommendations(updatedProfile, true);
+        
+        if (result.recommendations.length > 0) {
+          const formattedResponse = await this.formatRecommendations(
+            result.recommendations,
+            updatedProfile,
+            context
+          );
+          
+          return {
+            response: `Ótimo! Vou te mostrar algumas opções que podem atender sua necessidade:\n\n${formattedResponse}`,
+            extractedPreferences: { ...extracted.extracted, _askedForAlternatives: false },
+            needsMoreInfo: [],
+            canRecommend: true,
+            recommendations: result.recommendations,
+            nextMode: 'recommendation',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.85,
+              llmUsed: 'gpt-4o-mini'
+            }
+          };
+        }
+      }
+      
+      // If user declined alternatives, continue conversation
+      if (wasAskedForAlternatives && !userAcceptsAlternatives) {
+        const declineResponse = `Entendi! Sem problemas. 🙂
+
+Posso te avisar quando chegarmos pickups no estoque. Me passa seu nome e telefone que entro em contato assim que tiver novidades!
+
+Ou se preferir, posso te ajudar a buscar outro tipo de veículo.`;
+        
+        return {
+          response: declineResponse,
+          extractedPreferences: { ...extracted.extracted, _askedForAlternatives: false },
+          needsMoreInfo: ['customerName'],
+          canRecommend: false,
+          nextMode: 'discovery',
+          metadata: {
+            processingTime: Date.now() - startTime,
+            confidence: 0.8,
+            llmUsed: 'gpt-4o-mini'
+          }
+        };
+      }
+
       // 3. Check if user mentioned specific model (e.g., "Spin", "Civic")
       const hasSpecificModel = !!(extracted.extracted.model || extracted.extracted.brand);
 
@@ -146,11 +201,11 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         }, 'VehicleExpert: Specific model mentioned, searching directly');
 
         // Search for specific model
-        const recommendations = await this.getRecommendations(updatedProfile);
+        const result = await this.getRecommendations(updatedProfile);
 
-        if (recommendations.length > 0) {
+        if (result.recommendations.length > 0) {
           const formattedResponse = await this.formatRecommendations(
-            recommendations,
+            result.recommendations,
             updatedProfile,
             context
           );
@@ -160,7 +215,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
             extractedPreferences: extracted.extracted,
             needsMoreInfo: [],
             canRecommend: true,
-            recommendations,
+            recommendations: result.recommendations,
             nextMode: 'recommendation',
             metadata: {
               processingTime: Date.now() - startTime,
@@ -216,9 +271,36 @@ Posso te mostrar modelos similares? Me conta mais sobre o que você busca (uso, 
 
       if (readiness.canRecommend) {
         // Generate recommendations
-        const recommendations = await this.getRecommendations(updatedProfile);
+        const result = await this.getRecommendations(updatedProfile);
+        
+        // Se não encontrou pickups, perguntar se quer sugestões
+        if (result.noPickupsFound) {
+          const noPickupResponse = `Hmm, não temos pickups disponíveis no momento no estoque. 🛻
+
+Mas posso te ajudar de outras formas:
+- 🚙 Temos *SUVs* com bom espaço de carga (tipo HR-V, Creta, Compass)
+- 📦 Alguns modelos com porta-malas bem amplo
+- 🔔 Posso te avisar quando chegar uma pickup
+
+Quer que eu te mostre algumas sugestões de SUVs ou outros veículos espaçosos?`;
+
+          return {
+            response: noPickupResponse,
+            extractedPreferences: { ...extracted.extracted, _askedForAlternatives: true },
+            needsMoreInfo: [],
+            canRecommend: false,
+            nextMode: 'clarification',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.9,
+              llmUsed: 'gpt-4o-mini',
+              noPickupsFound: true
+            }
+          };
+        }
+        
         const formattedResponse = await this.formatRecommendations(
-          recommendations,
+          result.recommendations,
           updatedProfile,
           context
         );
@@ -228,7 +310,7 @@ Posso te mostrar modelos similares? Me conta mais sobre o que você busca (uso, 
           extractedPreferences: extracted.extracted,
           needsMoreInfo: [],
           canRecommend: true,
-          recommendations,
+          recommendations: result.recommendations,
           nextMode: 'recommendation',
           metadata: {
             processingTime: Date.now() - startTime,
@@ -292,6 +374,48 @@ Posso te mostrar modelos similares? Me conta mais sobre o que você busca (uso, 
     ];
 
     return questionPatterns.some(pattern => pattern.test(message.trim()));
+  }
+
+  /**
+   * Detect if user response is affirmative (accepting a suggestion)
+   */
+  private detectAffirmativeResponse(message: string): boolean {
+    const normalized = message.toLowerCase().trim();
+    
+    // Affirmative patterns
+    const affirmativePatterns = [
+      /^(sim|s|ss|sss|siiim|siim)$/i,
+      /^(pode|podes|pode ser|pode sim)$/i,
+      /^(quero|quero sim|quero ver)$/i,
+      /^(ok|okay|beleza|blz|bora|vamos|show)$/i,
+      /^(claro|com certeza|certeza)$/i,
+      /^(tá|ta|tudo bem|tranquilo)$/i,
+      /^(manda|manda aí|manda ver|mostra)$/i,
+      /^(por favor|pfv|pf)$/i,
+      /sim,?\s*(pode|quero|manda)/i,
+      /pode\s*(me )?mostrar/i,
+      /quero\s*(ver|saber)/i,
+      /mostra\s*(aí|ai|pra mim)?/i,
+      /(me )?mostra/i,
+      /interessado/i,
+      /tenho interesse/i,
+    ];
+
+    // Negative patterns (to avoid false positives)
+    const negativePatterns = [
+      /^(não|nao|n|nn|nope|nunca)$/i,
+      /não\s*(quero|preciso|obrigado)/i,
+      /deixa\s*(pra lá|quieto)/i,
+      /sem\s*(interesse|necessidade)/i,
+      /só\s*(pickup|picape|caminhonete)/i,  // User insists on pickup only
+    ];
+
+    // Check for negative first
+    if (negativePatterns.some(pattern => pattern.test(normalized))) {
+      return false;
+    }
+
+    return affirmativePatterns.some(pattern => pattern.test(normalized));
   }
 
   /**
@@ -423,10 +547,12 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
 
   /**
    * Get vehicle recommendations based on profile
+   * Returns { recommendations, noPickupsFound } to indicate if we need to ask user for alternatives
    */
   private async getRecommendations(
-    profile: Partial<CustomerProfile>
-  ): Promise<VehicleRecommendation[]> {
+    profile: Partial<CustomerProfile>,
+    allowAlternatives: boolean = false
+  ): Promise<{ recommendations: VehicleRecommendation[], noPickupsFound?: boolean, wantsPickup?: boolean }> {
     try {
       // Build search query
       const query = this.buildSearchQuery(profile);
@@ -448,6 +574,8 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       // Detect pickup/work requirements
       const wantsPickup = profile.bodyType === 'pickup' ||
         profile.priorities?.includes('pickup') ||
+        profile.priorities?.includes('picape') ||
+        profile.priorities?.includes('caminhonete') ||
         profile.priorities?.includes('carga') ||
         profile.priorities?.includes('cacamba');
 
@@ -456,7 +584,7 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         profile.priorities?.includes('trabalho');
 
       // Search vehicles
-      const results = await vehicleSearchAdapter.search(query.searchText, {
+      let results = await vehicleSearchAdapter.search(query.searchText, {
         maxPrice: query.filters.maxPrice,
         minYear: query.filters.minYear,
         bodyType: wantsPickup ? 'pickup' : query.filters.bodyType?.[0],
@@ -469,6 +597,23 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         // Apply work filter
         aptoTrabalho: isWork || undefined,
       });
+
+      // Se não encontrou pickups e o usuário quer pickup
+      if (wantsPickup && results.length === 0 && !allowAlternatives) {
+        logger.info({ profile }, 'No pickups found, will ask user for alternatives');
+        return { recommendations: [], noPickupsFound: true, wantsPickup: true };
+      }
+
+      // Se o usuário aceitou alternativas e pediu pickup, buscar SUVs e outros com espaço
+      if (wantsPickup && results.length === 0 && allowAlternatives) {
+        logger.info({ profile }, 'Searching for alternatives to pickup (SUVs, etc)');
+        results = await vehicleSearchAdapter.search('suv utilitário espaço carga', {
+          maxPrice: query.filters.maxPrice,
+          minYear: query.filters.minYear,
+          limit: 10,
+          aptoTrabalho: true,
+        });
+      }
 
       // Post-filter: apply family-specific rules
       let filteredResults = results;
@@ -552,14 +697,15 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         resultsCount: filteredResults.length,
         isUberBlack,
         isUberX,
-        isFamily
+        isFamily,
+        wantsPickup
       }, 'Generated recommendations');
 
-      return filteredResults.slice(0, 5);
+      return { recommendations: filteredResults.slice(0, 5), wantsPickup };
 
     } catch (error) {
       logger.error({ error, profile }, 'Failed to get recommendations');
-      return [];
+      return { recommendations: [] };
     }
   }
 
