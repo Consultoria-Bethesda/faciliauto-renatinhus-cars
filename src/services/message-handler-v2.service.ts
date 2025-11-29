@@ -7,7 +7,7 @@ import { ConversationState } from '../types/state.types';
 import { dataRightsService } from './data-rights.service';
 import { featureFlags } from '../lib/feature-flags';
 import { conversationalHandler } from './conversational-handler.service';
-import { langGraphHandler } from '../graph/langgraph-flow';
+import { simpleLangGraphHandler } from '../graph/simple-langgraph';
 
 /**
  * MessageHandlerV2 - New implementation using LangGraph
@@ -146,7 +146,7 @@ Para começar, qual é o seu nome?`;
           }
         }
 
-        const result = await langGraphHandler.handleMessage(
+        const result = await simpleLangGraphHandler.handleMessage(
           conversation.id,
           phoneNumber,
           sanitizedMessage,
