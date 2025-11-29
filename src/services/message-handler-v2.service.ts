@@ -51,7 +51,7 @@ Olá! 👋 Bem-vindo à *FaciliAuto*!
 
 Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
 
-Como posso te ajudar hoje?`;
+Para começar, qual é o seu nome?`;
       }
 
       // 👋 Check for greetings (restart conversation if in the middle)
@@ -71,7 +71,7 @@ Como posso te ajudar hoje?`;
 
 Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
 
-Como posso te ajudar hoje?`;
+Para começar, qual é o seu nome?`;
       }
 
       // 🔒 LGPD: Check for data rights commands

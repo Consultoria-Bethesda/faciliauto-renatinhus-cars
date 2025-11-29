@@ -135,11 +135,11 @@ Me conta: o que você está procurando?`;
     }
 
     // Standard greeting (no name provided)
-    const response = `Olá! 😊 Bem-vindo à Robust Car!
+    const response = `Olá! 😊 Bem-vindo à *FaciliAuto*!
 
 Sou especialista em veículos usados e vou te ajudar a encontrar o carro ideal.
 
-Como posso te chamar?`;
+Para começar, qual é o seu nome?`;
 
     return {
       response,
