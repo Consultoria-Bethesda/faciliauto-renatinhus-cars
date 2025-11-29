@@ -476,15 +476,24 @@ Me diz o que prefere!`;
 
       const vehiclesList = top3.map((rec, i) => {
         const v = rec.vehicle;
-        return `${i + 1}. ${i === 0 ? '🏆 ' : ''}${v.brand} ${v.model} ${v.year} - R$ ${v.price.toLocaleString('pt-BR')} (${Math.round(rec.matchScore)}% match)
-   ✓ ${v.mileage?.toLocaleString('pt-BR') || '?'} km
-   ✓ ${v.bodyType || 'N/A'}${v.transmission ? `, ${v.transmission}` : ''}
-   ${rec.highlights?.[0] || ''}`;
+        const link = v.detailsUrl || v.url;
+        let item = `${i + 1}. ${i === 0 ? '🏆 ' : ''}*${v.brand} ${v.model} ${v.year}*
+   💰 R$ ${v.price.toLocaleString('pt-BR')}
+   🛣️ ${v.mileage?.toLocaleString('pt-BR') || '?'} km
+   🚗 ${v.bodyType || 'N/A'}${v.transmission ? ` | ${v.transmission}` : ''}`;
+
+        if (link) {
+          item += `\n   🔗 ${link}`;
+        }
+
+        return item;
       }).join('\n\n');
 
       const intro = this.generateRecommendationIntro(profile, recommendations.length);
 
-      const outro = `\nQual te interessou mais? Posso dar mais detalhes ou fazer simulação de financiamento! 😊`;
+      const outro = `\n\nQual te interessou mais? Posso dar mais detalhes! 😊
+
+_Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`;
 
       return `${intro}\n\n${vehiclesList}${outro}`;
 
