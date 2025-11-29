@@ -18,9 +18,8 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'usage',
-    question: `🚗 Qual será o uso principal do veículo?\n\n1️⃣ Cidade (urbano)\n2️⃣ Viagem (estrada)\n3️⃣ Trabalho\n4️⃣ Misto (cidade + viagem)\n\n_Digite o número da opção_${EXIT_FOOTER}`,
-    type: 'choice',
-    options: ['cidade', 'viagem', 'trabalho', 'misto'],
+    question: `🚗 Para que você vai usar o carro? Descreva livremente!\n\n_Exemplos: "trabalhar em obra", "levar família pra escola", "fazer Uber", "viajar nos fins de semana", "ir pro trabalho"_${EXIT_FOOTER}`,
+    type: 'text',
   },
   {
     id: 'people',
@@ -45,9 +44,8 @@ const QUIZ_QUESTIONS: QuizQuestion[] = [
   },
   {
     id: 'bodyType',
-    question: `🚙 Qual tipo de carroceria você prefere?\n\n1️⃣ Hatch (compacto)\n2️⃣ Sedan\n3️⃣ SUV/Crossover\n4️⃣ Picape\n5️⃣ Tanto faz\n\n_Digite o número da opção_${EXIT_FOOTER}`,
-    type: 'choice',
-    options: ['hatch', 'sedan', 'suv', 'picape', 'tanto faz'],
+    question: `🚙 Tem preferência por algum tipo de carro?\n\n_Exemplos: "picape", "SUV", "sedan", "hatch", "tanto faz"_${EXIT_FOOTER}`,
+    type: 'text',
   },
   {
     id: 'urgency',
@@ -139,6 +137,7 @@ export class QuizAgent {
         const optLower = opt.toLowerCase();
         // Direct match
         if (cleanAnswer.includes(optLower)) return true;
+        
         // Match for urgency question
         if (optLower === '3meses' && (cleanAnswer.includes('3') && cleanAnswer.includes('mes'))) return true;
         if (optLower === '1mes' && (cleanAnswer.includes('1') && cleanAnswer.includes('mes'))) return true;
@@ -153,7 +152,7 @@ export class QuizAgent {
 
       return {
         valid: false,
-        error: `❌ Opção inválida. Por favor, *escolha uma das opções digitando o número* (1, 2, 3 ou 4).`,
+        error: `❌ Opção inválida. Por favor, *escolha uma das opções digitando o número*.`,
       };
     }
 

@@ -1,11 +1,18 @@
 import { prisma } from '../lib/prisma';
-import { generateRecommendationReasoning } from '../lib/groq';
+import { chatCompletion, ChatMessage } from '../lib/groq';
 import { logger } from '../lib/logger';
 
 interface VehicleMatch {
   vehicle: any;
   matchScore: number;
   reasoning: string;
+}
+
+interface LLMVehicleEvaluation {
+  vehicleId: string;
+  score: number;
+  reasoning: string;
+  isAdequate: boolean;
 }
 
 export class RecommendationAgent {
@@ -24,35 +31,40 @@ export class RecommendationAgent {
         return [];
       }
 
-      // Calculate match score for each vehicle
-      const matches: VehicleMatch[] = [];
-
-      for (const vehicle of vehicles) {
-        const matchScore = this.calculateMatchScore(vehicle, answers);
-        
-        if (matchScore >= 50) { // Only recommend vehicles with score >= 50
-          const reasoning = await this.generateReasoning(vehicle, answers, matchScore);
-          
-          matches.push({
-            vehicle,
-            matchScore,
-            reasoning,
-          });
-        }
+      // Pré-filtrar veículos por critérios objetivos (orçamento, ano, km)
+      const filteredVehicles = this.preFilterVehicles(vehicles, answers);
+      
+      if (filteredVehicles.length === 0) {
+        logger.warn('No vehicles passed pre-filter');
+        return [];
       }
 
-      // Sort by match score (descending) and take top 3
-      matches.sort((a, b) => b.matchScore - a.matchScore);
-      const topMatches = matches.slice(0, 3);
+      // Usar LLM para avaliar adequação ao contexto do usuário
+      const evaluatedVehicles = await this.evaluateVehiclesWithLLM(filteredVehicles, answers);
+
+      // Filtrar apenas veículos adequados e ordenar por score
+      const matches: VehicleMatch[] = evaluatedVehicles
+        .filter(ev => ev.isAdequate && ev.score >= 50)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(ev => {
+          const vehicle = filteredVehicles.find(v => v.id === ev.vehicleId);
+          return {
+            vehicle,
+            matchScore: ev.score,
+            reasoning: ev.reasoning,
+          };
+        })
+        .filter(m => m.vehicle); // Garantir que o veículo existe
 
       // Save recommendations to database
-      for (let i = 0; i < topMatches.length; i++) {
+      for (let i = 0; i < matches.length; i++) {
         await prisma.recommendation.create({
           data: {
             conversationId,
-            vehicleId: topMatches[i].vehicle.id,
-            matchScore: topMatches[i].matchScore,
-            reasoning: topMatches[i].reasoning,
+            vehicleId: matches[i].vehicle.id,
+            matchScore: matches[i].matchScore,
+            reasoning: matches[i].reasoning,
             position: i + 1,
           },
         });
@@ -63,127 +75,171 @@ export class RecommendationAgent {
           conversationId,
           eventType: 'recommendation_sent',
           metadata: JSON.stringify({
-            count: topMatches.length,
-            scores: topMatches.map(m => m.matchScore),
+            count: matches.length,
+            scores: matches.map(m => m.matchScore),
           }),
         },
       });
 
       logger.info({
         conversationId,
-        recommendationsCount: topMatches.length,
-        topScore: topMatches[0]?.matchScore,
-      }, 'Recommendations generated');
+        recommendationsCount: matches.length,
+        topScore: matches[0]?.matchScore,
+      }, 'Recommendations generated with LLM evaluation');
 
-      return topMatches;
+      return matches;
     } catch (error) {
       logger.error({ error, conversationId }, 'Error generating recommendations');
       return [];
     }
   }
 
-  private calculateMatchScore(vehicle: any, answers: Record<string, any>): number {
-    let score = 100;
+  /**
+   * Pré-filtra veículos por critérios objetivos (orçamento, ano, km)
+   */
+  private preFilterVehicles(vehicles: any[], answers: Record<string, any>): any[] {
+    const budget = answers.budget || Infinity;
+    const minYear = answers.minYear || 1990;
+    const maxKm = answers.maxKm || 500000;
 
-    // Budget (30% weight) - HARD FILTER
-    const preco = parseFloat(vehicle.preco);
-    const budget = answers.budget;
-    
-    // Exclude vehicles over budget (deal breaker)
-    if (preco > budget) {
-      score = 0;
-      return score;
-    }
-    
-    // Bonus for vehicles well within budget
-    const budgetUsage = preco / budget;
-    if (budgetUsage < 0.7) {
-      score += 10; // Great value
-    } else if (budgetUsage >= 0.9) {
-      score += 5; // Close to budget - maximize value
-    }
-
-    // Year (15% weight)
-    const minYear = answers.minYear || 2010;
-    if (vehicle.ano < minYear) {
-      score = 0; // Deal breaker
-      return score;
-    }
-    if (vehicle.ano >= minYear + 3) {
-      score += 10; // Bonus for newer cars
-    }
-
-    // Km (15% weight) - HARD FILTER
-    const maxKm = answers.maxKm || 200000;
-    if (vehicle.km > maxKm) {
-      score = 0; // Deal breaker - exclude vehicles over max km
-      return score;
-    } else if (vehicle.km < maxKm * 0.5) {
-      score += 10; // Bonus for low mileage
-    }
-
-    // Body type (10% weight)
-    const bodyType = answers.bodyType;
-    if (bodyType && bodyType !== 'tanto faz') {
-      if (vehicle.carroceria.toLowerCase().includes(bodyType.toLowerCase())) {
-        score += 10;
-      } else {
-        score -= 15;
-      }
-    }
-
-    // People capacity (8% weight)
-    const people = answers.people || 5;
-    // Assume most cars are 5-seaters, SUVs 7, pickups 5
-    let vehicleCapacity = 5;
-    if (vehicle.carroceria.toLowerCase().includes('suv')) vehicleCapacity = 7;
-    
-    if (vehicleCapacity < people) {
-      score -= 30; // Can't fit everyone
-    } else if (vehicleCapacity === people) {
-      score += 5; // Perfect fit
-    }
-
-    // Usage (10% weight)
-    const usage = answers.usage;
-    if (usage === 'cidade' && vehicle.carroceria.toLowerCase().includes('hatch')) {
-      score += 10;
-    }
-    if (usage === 'viagem' && (vehicle.carroceria.toLowerCase().includes('sedan') || vehicle.carroceria.toLowerCase().includes('suv'))) {
-      score += 10;
-    }
-    if (usage === 'trabalho' && vehicle.carroceria.toLowerCase().includes('picape')) {
-      score += 15;
-    }
-
-    // Has trade-in (5% bonus)
-    if (answers.hasTradeIn) {
-      score += 5;
-    }
-
-    // Ensure score is between 0 and 100
-    score = Math.max(0, Math.min(100, Math.round(score)));
-
-    return score;
+    return vehicles.filter(vehicle => {
+      const preco = parseFloat(vehicle.preco);
+      // Permitir 10% acima do orçamento para dar opções
+      if (preco > budget * 1.1) return false;
+      if (vehicle.ano < minYear) return false;
+      if (vehicle.km > maxKm) return false;
+      return true;
+    });
   }
 
-  private async generateReasoning(
-    vehicle: any,
-    answers: Record<string, any>,
-    matchScore: number
-  ): Promise<string> {
+  /**
+   * Usa LLM para avaliar adequação dos veículos ao contexto do usuário
+   */
+  private async evaluateVehiclesWithLLM(
+    vehicles: any[],
+    answers: Record<string, any>
+  ): Promise<LLMVehicleEvaluation[]> {
+    // Construir descrição do perfil do usuário
+    const userContext = this.buildUserContext(answers);
+    
+    // Construir lista de veículos para avaliação
+    const vehiclesList = vehicles.map(v => ({
+      id: v.id,
+      descricao: `${v.marca} ${v.modelo} ${v.versao || ''} ${v.ano}, ${v.km.toLocaleString('pt-BR')}km, R$${parseFloat(v.preco).toLocaleString('pt-BR')}, ${v.carroceria}, ${v.combustivel}, ${v.cambio}`,
+      carroceria: v.carroceria,
+    }));
+
+    const messages: ChatMessage[] = [
+      {
+        role: 'system',
+        content: `Você é um especialista em vendas de veículos. Sua tarefa é avaliar quais veículos são mais adequados para o perfil e necessidade do cliente.
+
+IMPORTANTE: Analise o CONTEXTO DE USO do cliente para determinar adequação:
+- Se o cliente menciona "obra", "construção", "carga", "material", "campo", "fazenda", "rural" → PRIORIZE picapes e utilitários
+- Se o cliente menciona "família", "crianças", "viagem" → PRIORIZE sedans, SUVs espaçosos
+- Se o cliente menciona "cidade", "urbano", "economia" → PRIORIZE hatches compactos
+- Se o cliente menciona "trabalho", "visitas", "clientes" → PRIORIZE sedans, hatches confortáveis
+- Se o cliente menciona "Uber", "app", "99" → PRIORIZE sedans 4 portas com ar-condicionado
+
+Retorne APENAS um JSON válido no formato:
+{
+  "evaluations": [
+    {"vehicleId": "id", "score": 0-100, "reasoning": "motivo curto", "isAdequate": true/false}
+  ]
+}
+
+O score deve refletir:
+- 90-100: Perfeito para o contexto do cliente
+- 70-89: Muito bom, atende bem
+- 50-69: Aceitável, pode funcionar
+- 0-49: Não adequado para o contexto
+
+Seja RIGOROSO: se o cliente precisa de picape para obra, NÃO recomende sedans/hatches.`
+      },
+      {
+        role: 'user',
+        content: `PERFIL DO CLIENTE:
+${userContext}
+
+VEÍCULOS DISPONÍVEIS:
+${vehiclesList.map((v, i) => `${i + 1}. [${v.id}] ${v.descricao}`).join('\n')}
+
+Avalie cada veículo e retorne o JSON com as avaliações.`
+      }
+    ];
+
     try {
-      const vehicleInfo = `${vehicle.marca} ${vehicle.modelo} ${vehicle.versao || ''} ${vehicle.ano}, ${vehicle.km.toLocaleString('pt-BR')} km, R$ ${parseFloat(vehicle.preco).toLocaleString('pt-BR')}`;
+      const response = await chatCompletion(messages, {
+        temperature: 0.3,
+        maxTokens: 1500,
+      });
+
+      // Parsear resposta JSON
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        logger.error('LLM did not return valid JSON');
+        return this.fallbackEvaluation(vehicles, answers);
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
       
-      const userProfile = `Orçamento R$ ${answers.budget?.toLocaleString('pt-BR')}, uso ${answers.usage}, ${answers.people} pessoas, ano mínimo ${answers.minYear}, km máxima ${answers.maxKm?.toLocaleString('pt-BR')}`;
+      if (!parsed.evaluations || !Array.isArray(parsed.evaluations)) {
+        logger.error('LLM response missing evaluations array');
+        return this.fallbackEvaluation(vehicles, answers);
+      }
+
+      logger.info({ evaluationsCount: parsed.evaluations.length }, 'LLM evaluations received');
       
-      const response = await generateRecommendationReasoning(vehicleInfo, userProfile, matchScore);
-      return response.trim();
+      return parsed.evaluations;
     } catch (error) {
-      logger.error({ error }, 'Error generating reasoning');
-      
-      // Fallback reasoning
-      return `Excelente opção com ${vehicle.km.toLocaleString('pt-BR')} km rodados, ${vehicle.ano} modelo, por R$ ${parseFloat(vehicle.preco).toLocaleString('pt-BR')}. Ótimo custo-benefício!`;
+      logger.error({ error }, 'Error in LLM vehicle evaluation');
+      return this.fallbackEvaluation(vehicles, answers);
     }
+  }
+
+  /**
+   * Constrói descrição do contexto do usuário para o LLM
+   */
+  private buildUserContext(answers: Record<string, any>): string {
+    const parts: string[] = [];
+
+    if (answers.budget) {
+      parts.push(`- Orçamento: R$ ${answers.budget.toLocaleString('pt-BR')}`);
+    }
+    if (answers.usage) {
+      parts.push(`- Uso principal: ${answers.usage}`);
+    }
+    if (answers.usageContext) {
+      parts.push(`- Contexto detalhado: ${answers.usageContext}`);
+    }
+    if (answers.people) {
+      parts.push(`- Número de pessoas: ${answers.people}`);
+    }
+    if (answers.minYear) {
+      parts.push(`- Ano mínimo: ${answers.minYear}`);
+    }
+    if (answers.maxKm) {
+      parts.push(`- Km máxima: ${answers.maxKm.toLocaleString('pt-BR')}`);
+    }
+    if (answers.bodyType && answers.bodyType !== 'tanto faz') {
+      parts.push(`- Preferência de carroceria: ${answers.bodyType}`);
+    }
+    if (answers.hasTradeIn) {
+      parts.push(`- Tem carro para troca: ${answers.hasTradeIn}`);
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Avaliação de fallback caso o LLM falhe
+   */
+  private fallbackEvaluation(vehicles: any[], answers: Record<string, any>): LLMVehicleEvaluation[] {
+    return vehicles.map(vehicle => ({
+      vehicleId: vehicle.id,
+      score: 70, // Score neutro
+      reasoning: `${vehicle.marca} ${vehicle.modelo} - Veículo disponível dentro dos critérios.`,
+      isAdequate: true,
+    }));
   }
 }
