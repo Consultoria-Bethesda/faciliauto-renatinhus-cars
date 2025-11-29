@@ -176,11 +176,29 @@ Me conta: o que você está procurando?`;
 
   /**
    * Handle context discovery (uso principal e orçamento)
+   * Also checks if user mentioned specific brand/model
    */
   private async handleContextDiscovery(
     message: string,
     state: ConversationState
   ): Promise<{ response: string; updatedProfile: Partial<CustomerProfile> }> {
+    // First, check if user mentioned a specific brand or model
+    const brandModel = await this.extractBrandModel(message);
+    
+    if (brandModel.brand || brandModel.model) {
+      logger.info({ brand: brandModel.brand, model: brandModel.model }, 'User mentioned specific brand/model in context discovery');
+      
+      // Return with brand/model to let vehicle expert handle the search
+      return {
+        response: '', // Empty response signals to pass to vehicle expert
+        updatedProfile: { 
+          brand: brandModel.brand || undefined,
+          model: brandModel.model || undefined,
+          _skipOnboarding: true // Flag to skip rest of onboarding
+        }
+      };
+    }
+    
     // Extract context using LLM
     const context = await this.extractContext(message);
 
@@ -241,6 +259,55 @@ E qual vai ser o uso principal? Cidade, viagens, trabalho ou aplicativo (Uber/99
       response,
       updatedProfile
     };
+  }
+
+  /**
+   * Extract brand and model from message
+   */
+  private async extractBrandModel(message: string): Promise<{ brand: string | null; model: string | null }> {
+    try {
+      const prompt = `Identifique se há MARCA ou MODELO de carro nesta mensagem.
+
+Mensagem: "${message}"
+
+MARCAS CONHECIDAS: Honda, Toyota, Volkswagen, VW, Chevrolet, GM, Fiat, Hyundai, Ford, Renault, Nissan, Jeep, Mitsubishi, Peugeot, Citroen, BMW, Mercedes, Audi
+
+MODELOS CONHECIDOS: Civic, Corolla, Gol, Onix, HB20, Argo, Creta, Kicks, T-Cross, Tracker, HR-V, Compass, Renegade, Spin, Fit, City, Sentra, Versa, Polo, Virtus, Jetta, Cruze, Cobalt, Prisma, Strada, S10, Hilux, Ranger, Saveiro, Toro, L200, Amarok, Frontier
+
+Se encontrar marca/modelo, retorne JSON. Se não encontrar, retorne null.
+
+Exemplos:
+- "Quero um Civic" → {"brand": "honda", "model": "civic"}
+- "Tem Jeep?" → {"brand": "jeep", "model": null}
+- "Honda" → {"brand": "honda", "model": null}
+- "Procuro uma Strada" → {"brand": "fiat", "model": "strada"}
+- "Quero um carro econômico" → {"brand": null, "model": null}
+- "50 mil" → {"brand": null, "model": null}
+
+Responda APENAS o JSON:`;
+
+      const response = await chatCompletion([
+        { role: 'user', content: prompt }
+      ], {
+        temperature: 0,
+        maxTokens: 50
+      });
+
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { brand: null, model: null };
+      }
+
+      const json = JSON.parse(jsonMatch[0]);
+      return {
+        brand: json.brand === 'null' || !json.brand ? null : json.brand.toLowerCase(),
+        model: json.model === 'null' || !json.model ? null : json.model.toLowerCase()
+      };
+
+    } catch (error) {
+      logger.error({ error }, 'Error extracting brand/model');
+      return { brand: null, model: null };
+    }
   }
 
   /**

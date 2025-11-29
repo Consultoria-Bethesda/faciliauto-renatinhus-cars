@@ -36,7 +36,10 @@ export class ConversationalHandler {
       };
       
       // Check if needs onboarding (greeting + name + context)
-      if (onboardingHandler.needsOnboarding(stateWithUserMessage)) {
+      // But skip if user already asked for specific brand/model
+      const shouldSkipOnboarding = stateWithUserMessage.profile?._skipOnboarding;
+      
+      if (onboardingHandler.needsOnboarding(stateWithUserMessage) && !shouldSkipOnboarding) {
         logger.debug({
           conversationId: stateWithUserMessage.conversationId,
           messageCount: stateWithUserMessage.messages.length
@@ -44,38 +47,53 @@ export class ConversationalHandler {
         
         const onboardingResult = await onboardingHandler.handleOnboarding(message, stateWithUserMessage);
         
-        // Update state with onboarding data
-        const updatedState: ConversationState = {
-          ...stateWithUserMessage,
-          profile: {
+        // If onboarding detected brand/model, skip onboarding and let vehicle expert handle it
+        if (onboardingResult.updatedProfile._skipOnboarding || onboardingResult.response === '') {
+          logger.info({
+            brand: onboardingResult.updatedProfile.brand,
+            model: onboardingResult.updatedProfile.model
+          }, 'Conversational: User mentioned brand/model, skipping onboarding to vehicle expert');
+          
+          // Update state with brand/model and continue to vehicle expert
+          stateWithUserMessage.profile = {
             ...stateWithUserMessage.profile,
             ...onboardingResult.updatedProfile
-          },
-          messages: [
-            ...stateWithUserMessage.messages,
-            {
-              role: 'assistant',
-              content: onboardingResult.response,
-              timestamp: new Date()
+          };
+          // Don't return here - let it fall through to vehicle expert
+        } else {
+          // Normal onboarding flow
+          const updatedState: ConversationState = {
+            ...stateWithUserMessage,
+            profile: {
+              ...stateWithUserMessage.profile,
+              ...onboardingResult.updatedProfile
+            },
+            messages: [
+              ...stateWithUserMessage.messages,
+              {
+                role: 'assistant',
+                content: onboardingResult.response,
+                timestamp: new Date()
+              }
+            ],
+            metadata: {
+              ...stateWithUserMessage.metadata,
+              lastMessageAt: new Date(),
             }
-          ],
-          metadata: {
-            ...stateWithUserMessage.metadata,
-            lastMessageAt: new Date(),
-          }
-        };
-        
-        logger.info({
-          conversationId: state.conversationId,
-          hasName: !!updatedState.profile.customerName,
-          hasContext: !!updatedState.profile.usoPrincipal,
-          processingTime: Date.now() - startTime
-        }, 'Conversational: onboarding processed');
-        
-        return {
-          response: onboardingResult.response,
-          updatedState
-        };
+          };
+          
+          logger.info({
+            conversationId: state.conversationId,
+            hasName: !!updatedState.profile.customerName,
+            hasContext: !!updatedState.profile.usoPrincipal,
+            processingTime: Date.now() - startTime
+          }, 'Conversational: onboarding processed');
+          
+          return {
+            response: onboardingResult.response,
+            updatedState
+          };
+        }
       }
       
       // Build conversation context from state (with user message already added)
