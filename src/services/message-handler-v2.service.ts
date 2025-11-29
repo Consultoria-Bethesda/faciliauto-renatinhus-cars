@@ -28,6 +28,7 @@ export class MessageHandlerV2 {
       // 🔄 Check for exit/restart commands (available at any time)
       const exitCommands = ['sair', 'encerrar', 'tchau', 'bye', 'adeus'];
       const restartCommands = ['reiniciar', 'recomeçar', 'voltar', 'cancelar', 'reset', 'nova busca'];
+      const greetingCommands = ['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'hey', 'hello', 'hi'];
 
       if (exitCommands.some(cmd => lowerMessage.includes(cmd))) {
         await this.resetConversation(phoneNumber);
@@ -47,6 +48,26 @@ Até logo! 🚗`;
         return `🔄 Conversa reiniciada!
 
 Olá! 👋 Bem-vindo à *FaciliAuto*!
+
+Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
+
+Como posso te ajudar hoje?`;
+      }
+
+      // 👋 Check for greetings (restart conversation if in the middle)
+      const isGreeting = greetingCommands.some(cmd => lowerMessage === cmd || lowerMessage.startsWith(cmd + ' ') || lowerMessage.startsWith(cmd + ','));
+      if (isGreeting) {
+        // Check if there's an existing conversation
+        const existingConversation = await prisma.conversation.findFirst({
+          where: { phoneNumber, status: 'active' },
+        });
+
+        if (existingConversation) {
+          await this.resetConversation(phoneNumber);
+          logger.info({ phoneNumber }, 'User sent greeting, restarting conversation');
+        }
+
+        return `Olá! 👋 Bem-vindo à *FaciliAuto*!
 
 Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
 
