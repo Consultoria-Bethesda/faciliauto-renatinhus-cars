@@ -23,6 +23,35 @@ export class MessageHandlerV2 {
 
       // Use sanitized input
       const sanitizedMessage = inputValidation.sanitizedInput || message;
+      const lowerMessage = sanitizedMessage.toLowerCase().trim();
+
+      // 🔄 Check for exit/restart commands (available at any time)
+      const exitCommands = ['sair', 'encerrar', 'tchau', 'bye', 'adeus'];
+      const restartCommands = ['reiniciar', 'recomeçar', 'voltar', 'cancelar', 'reset', 'nova busca'];
+
+      if (exitCommands.some(cmd => lowerMessage.includes(cmd))) {
+        await this.resetConversation(phoneNumber);
+        logger.info({ phoneNumber }, 'User requested exit');
+        return `Obrigado por usar a FaciliAuto! 👋
+
+Foi um prazer ajudar você.
+
+Se precisar de algo, é só enviar uma mensagem novamente! 😊
+
+Até logo! 🚗`;
+      }
+
+      if (restartCommands.some(cmd => lowerMessage.includes(cmd))) {
+        await this.resetConversation(phoneNumber);
+        logger.info({ phoneNumber }, 'User requested restart');
+        return `🔄 Conversa reiniciada!
+
+Olá! 👋 Bem-vindo à *FaciliAuto*!
+
+Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
+
+Como posso te ajudar hoje?`;
+      }
 
       // 🔒 LGPD: Check for data rights commands
       const lgpdResponse = await this.handleDataRightsCommands(phoneNumber, sanitizedMessage);
@@ -66,7 +95,7 @@ export class MessageHandlerV2 {
 
       // 🚦 FEATURE FLAG: Decide between conversational or quiz mode
       const useConversational = featureFlags.shouldUseConversationalMode(phoneNumber);
-      
+
       logger.info({
         conversationId: conversation.id,
         phoneNumber: phoneNumber.substring(0, 8) + '****',
@@ -81,20 +110,20 @@ export class MessageHandlerV2 {
       if (useConversational) {
         // 🆕 Use conversational mode (VehicleExpertAgent)
         logger.debug({ conversationId: conversation.id }, 'Processing with Conversational mode');
-        
+
         // Initialize state if new conversation
         if (!currentState) {
           currentState = this.initializeState(conversation.id, phoneNumber);
         }
-        
+
         const result = await conversationalHandler.handleMessage(sanitizedMessage, currentState);
         newState = result.updatedState;
         response = result.response;
-        
+
       } else {
         // 📋 Use legacy quiz mode (LangGraph)
         logger.debug({ conversationId: conversation.id }, 'Processing with LangGraph (quiz mode)');
-        
+
         newState = await conversationGraph.invoke({
           conversationId: conversation.id,
           phoneNumber,
@@ -108,7 +137,7 @@ export class MessageHandlerV2 {
       // 🛡️ GUARDRAIL: Validate output
       const outputValidation = guardrails.validateOutput(response);
       let finalResponse = response;
-      
+
       if (!outputValidation.allowed) {
         logger.error({ conversationId: conversation.id, reason: outputValidation.reason }, 'Output blocked by guardrails');
         finalResponse = 'Desculpe, houve um erro ao processar sua solicitação. Por favor, tente novamente ou digite "vendedor" para falar com nossa equipe.';
@@ -169,9 +198,9 @@ export class MessageHandlerV2 {
       }
 
       // Create lead if conversation reached recommendation stage
-      if (newState.graph.currentNode === 'recommendation' && 
-          newState.metadata.flags.includes('visit_requested') &&
-          !currentState?.metadata.flags.includes('visit_requested')) {
+      if (newState.graph.currentNode === 'recommendation' &&
+        newState.metadata.flags.includes('visit_requested') &&
+        !currentState?.metadata.flags.includes('visit_requested')) {
         await this.createLead(conversation, newState);
       }
 
@@ -274,6 +303,40 @@ export class MessageHandlerV2 {
   }
 
   /**
+   * Reset/clear conversation for a phone number
+   */
+  private async resetConversation(phoneNumber: string): Promise<void> {
+    try {
+      // Find all conversations for this phone
+      const conversations = await prisma.conversation.findMany({
+        where: { phoneNumber },
+      });
+
+      // Clear cache for each conversation
+      for (const conv of conversations) {
+        const stateKey = `conversation:${conv.id}:state`;
+        await cache.del(stateKey);
+      }
+
+      // Delete or mark conversations as closed
+      await prisma.conversation.updateMany({
+        where: {
+          phoneNumber,
+          status: 'active'
+        },
+        data: {
+          status: 'closed',
+          closedAt: new Date()
+        }
+      });
+
+      logger.info({ phoneNumber, count: conversations.length }, 'Conversation reset');
+    } catch (error) {
+      logger.error({ error, phoneNumber }, 'Error resetting conversation');
+    }
+  }
+
+  /**
    * LGPD Compliance: Handle data rights commands
    * Art. 18 - Direitos do titular (esquecimento, portabilidade)
    */
@@ -292,7 +355,7 @@ export class MessageHandlerV2 {
         if (pendingAction === 'DELETE_DATA') {
           logger.info({ phoneNumber }, 'LGPD: User confirmed data deletion');
           const success = await dataRightsService.deleteUserData(phoneNumber);
-          
+
           if (success) {
             return '✅ Seus dados foram excluídos com sucesso!\n\nObrigado por usar a FaciliAuto. Se precisar de algo no futuro, estaremos aqui! 👋';
           } else {
@@ -308,13 +371,13 @@ export class MessageHandlerV2 {
     }
 
     // Check for data deletion command
-    if (lowerMessage.includes('deletar meus dados') || 
-        lowerMessage.includes('excluir meus dados') ||
-        lowerMessage.includes('remover meus dados') ||
-        lowerMessage.includes('apagar meus dados')) {
-      
+    if (lowerMessage.includes('deletar meus dados') ||
+      lowerMessage.includes('excluir meus dados') ||
+      lowerMessage.includes('remover meus dados') ||
+      lowerMessage.includes('apagar meus dados')) {
+
       logger.info({ phoneNumber }, 'LGPD: Data deletion request received');
-      
+
       // Check if user has data
       const hasData = await dataRightsService.hasUserData(phoneNumber);
       if (!hasData) {
@@ -323,7 +386,7 @@ export class MessageHandlerV2 {
 
       // Set pending confirmation (expires in 5 minutes)
       await cache.set(confirmationKey, 'DELETE_DATA', 300);
-      
+
       return `⚠️ *Confirmação de Exclusão de Dados*
 
 Você solicitou a exclusão de todos os seus dados pessoais (LGPD Art. 18).
@@ -343,15 +406,15 @@ _Esta confirmação expira em 5 minutos._`;
     }
 
     // Check for data export command
-    if (lowerMessage.includes('exportar meus dados') || 
-        lowerMessage.includes('baixar meus dados') ||
-        lowerMessage.includes('meus dados')) {
-      
+    if (lowerMessage.includes('exportar meus dados') ||
+      lowerMessage.includes('baixar meus dados') ||
+      lowerMessage.includes('meus dados')) {
+
       logger.info({ phoneNumber }, 'LGPD: Data export request received');
-      
+
       try {
         const data = await dataRightsService.exportUserData(phoneNumber);
-        
+
         // Note: WhatsApp Cloud API can send documents
         // For now, we'll provide a summary
         return `✅ *Seus Dados Pessoais (LGPD Art. 18)*
