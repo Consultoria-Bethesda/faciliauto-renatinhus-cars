@@ -181,25 +181,43 @@ export class VehicleSearchAdapter {
 
   /**
    * Retorna variações de nome para cada tipo de carroceria
-   * Ex: "pickup" -> ["pickup", "picape", "caminhonete"]
+   * Aceita variações comuns em português e inglês
    */
   private getBodyTypeVariations(bodyType?: string): string[] {
     if (!bodyType) return [];
     
-    const bt = bodyType.toLowerCase();
+    const bt = bodyType.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove acentos
     
-    // Mapeamento de variações
-    const variations: Record<string, string[]> = {
-      'pickup': ['pickup', 'picape', 'caminhonete', 'cabine'],
-      'picape': ['pickup', 'picape', 'caminhonete', 'cabine'],
-      'suv': ['suv'],
-      'sedan': ['sedan', 'sedã'],
-      'hatch': ['hatch', 'hatchback'],
-      'hatchback': ['hatch', 'hatchback'],
-      'minivan': ['minivan', 'monovolume', 'mpv'],
-    };
+    // Mapeamento completo de variações (inclui termos em PT e EN)
+    const variationGroups: string[][] = [
+      // Pickups / Caminhonetes
+      ['pickup', 'picape', 'pick-up', 'caminhonete', 'camionete', 'cabine', 'truck'],
+      
+      // SUVs / Utilitários
+      ['suv', 'utilitario', 'crossover', 'jipe', 'jeep', '4x4', 'off-road', 'offroad'],
+      
+      // Sedans
+      ['sedan', 'seda', 'sedã', 'notchback', 'fastback'],
+      
+      // Hatches / Compactos
+      ['hatch', 'hatchback', 'compacto', 'compact'],
+      
+      // Minivans / Monovolumes
+      ['minivan', 'mini-van', 'monovolume', 'mpv', 'van', 'perua', 'wagon', 'station'],
+      
+      // Cupês / Esportivos
+      ['coupe', 'cupe', 'cupê', 'esportivo', 'sport', 'roadster', 'conversivel', 'cabriolet'],
+    ];
     
-    return variations[bt] || [bodyType];
+    // Encontrar o grupo que contém a variação buscada
+    for (const group of variationGroups) {
+      if (group.some(v => bt.includes(v) || v.includes(bt))) {
+        return group;
+      }
+    }
+    
+    // Se não encontrou grupo, retorna o termo original + algumas variações comuns
+    return [bodyType, bt];
   }
 
   /**
