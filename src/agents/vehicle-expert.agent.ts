@@ -282,6 +282,22 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
       const readiness = this.assessReadiness(updatedProfile, context);
 
       if (readiness.canRecommend) {
+        // Check recent messages for pickup keywords before recommendations
+        const pickupKeywords = ['pickup', 'picape', 'caminhonete', 'caçamba', 'cacamba', 'carga', 'obra', 'material', 'construção', 'construcao', 'carregar', 'entulho'];
+        const recentMessages = context.messages.slice(-5).map(m => m.content.toLowerCase()).join(' ');
+        const hasPickupInMessages = pickupKeywords.some(kw => recentMessages.includes(kw));
+        
+        // If pickup detected in messages but not in profile, add it
+        if (hasPickupInMessages && !updatedProfile.bodyType) {
+          logger.info({ recentMessages: recentMessages.substring(0, 100) }, 'Pickup detected in recent messages, adding to profile');
+          updatedProfile.bodyType = 'pickup';
+          if (!updatedProfile.priorities) {
+            updatedProfile.priorities = ['pickup'];
+          } else if (!updatedProfile.priorities.includes('pickup')) {
+            updatedProfile.priorities.push('pickup');
+          }
+        }
+        
         // Generate recommendations
         const result = await this.getRecommendations(updatedProfile);
         
@@ -576,13 +592,32 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         profile.priorities?.includes('cadeirinha') ||
         profile.priorities?.includes('crianca');
 
-      // Detect pickup/work requirements
+      // Detect pickup/work requirements - check profile, search text AND context messages
+      const pickupKeywords = ['pickup', 'picape', 'caminhonete', 'caçamba', 'cacamba', 'carga', 'obra', 'material', 'construção', 'construcao', 'carregar', 'entulho'];
+      const searchTextLower = query.searchText.toLowerCase();
+      const hasPickupInText = pickupKeywords.some(kw => searchTextLower.includes(kw));
+      
+      // Also check profile usoPrincipal and usage for work-related terms
+      const usageText = `${profile.usoPrincipal || ''} ${profile.usage || ''}`.toLowerCase();
+      const hasWorkUsage = usageText.includes('trabalho') || usageText.includes('obra');
+      
+      // Check priorities array for any pickup-related terms
+      const prioritiesText = (profile.priorities || []).join(' ').toLowerCase();
+      const hasPickupInPriorities = pickupKeywords.some(kw => prioritiesText.includes(kw));
+      
       const wantsPickup = profile.bodyType === 'pickup' ||
-        profile.priorities?.includes('pickup') ||
-        profile.priorities?.includes('picape') ||
-        profile.priorities?.includes('caminhonete') ||
-        profile.priorities?.includes('carga') ||
-        profile.priorities?.includes('cacamba');
+        hasPickupInText ||
+        hasPickupInPriorities ||
+        (hasWorkUsage && pickupKeywords.some(kw => usageText.includes(kw)));
+      
+      logger.info({ 
+        wantsPickup, 
+        bodyType: profile.bodyType, 
+        searchTextLower,
+        hasPickupInText,
+        usageText,
+        hasWorkUsage
+      }, 'Pickup detection check');
 
       const isWork = profile.usoPrincipal === 'trabalho' ||
         profile.usage === 'trabalho' ||

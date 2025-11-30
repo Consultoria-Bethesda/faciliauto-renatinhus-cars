@@ -56,9 +56,9 @@ export class VehicleSearchAdapter {
           ...(filters.minPrice && { preco: { gte: filters.minPrice } }),
           ...(filters.minYear && { ano: { gte: filters.minYear } }),
           ...(filters.maxKm && { km: { lte: filters.maxKm } }),
-          ...(filters.bodyType && { carroceria: filters.bodyType }),
-          ...(filters.transmission && { cambio: filters.transmission }),
-          ...(filters.brand && { marca: filters.brand }),
+          ...(filters.bodyType && { carroceria: { equals: filters.bodyType, mode: 'insensitive' } }),
+          ...(filters.transmission && { cambio: { equals: filters.transmission, mode: 'insensitive' } }),
+          ...(filters.brand && { marca: { equals: filters.brand, mode: 'insensitive' } }),
           // Uber filters
           ...(filters.aptoUber && { aptoUber: true }),
           ...(filters.aptoUberBlack && { aptoUberBlack: true }),
@@ -74,6 +74,22 @@ export class VehicleSearchAdapter {
           { ano: 'desc' },    // Mais novo
         ],
       });
+
+      // Se filtrou por bodyType e não encontrou nada, buscar SEM o filtro de IDs
+      // para verificar se existem veículos desse tipo no estoque
+      if (vehicles.length === 0 && filters.bodyType) {
+        const existsInStock = await prisma.vehicle.count({
+          where: {
+            disponivel: true,
+            carroceria: { equals: filters.bodyType, mode: 'insensitive' },
+          },
+        });
+        
+        if (existsInStock === 0) {
+          logger.info({ bodyType: filters.bodyType }, 'Body type not available in stock');
+          return []; // Retorna vazio para trigger "não temos X no estoque"
+        }
+      }
 
       // Convert to VehicleRecommendation format
       return vehicles.map((vehicle, index) => ({
