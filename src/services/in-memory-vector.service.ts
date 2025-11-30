@@ -42,11 +42,30 @@ class InMemoryVectorStore {
       where: { disponivel: true },
     });
 
-    console.log(`📊 Gerando embeddings para ${vehicles.length} veículos em background...`);
+    console.log(`📊 Carregando embeddings para ${vehicles.length} veículos...`);
+
+    let loadedFromDb = 0;
+    let generatedNew = 0;
 
     for (const vehicle of vehicles) {
       const description = this.buildVehicleDescription(vehicle);
-      const embedding = await generateEmbedding(description);
+      let embedding: number[];
+
+      // Verificar se já tem embedding salvo no banco
+      if (vehicle.embedding) {
+        try {
+          embedding = JSON.parse(vehicle.embedding);
+          loadedFromDb++;
+        } catch (e) {
+          // Embedding inválido, regenerar
+          embedding = await this.generateAndSaveEmbedding(vehicle.id, description);
+          generatedNew++;
+        }
+      } else {
+        // Não tem embedding, gerar e salvar
+        embedding = await this.generateAndSaveEmbedding(vehicle.id, description);
+        generatedNew++;
+      }
 
       this.embeddings.push({
         vehicleId: vehicle.id,
@@ -64,7 +83,28 @@ class InMemoryVectorStore {
 
     this.initialized = true;
     this.initializing = false;
-    console.log(`✅ Vector store pronto com ${this.embeddings.length} embeddings`);
+    console.log(`✅ Vector store pronto: ${loadedFromDb} carregados do DB, ${generatedNew} gerados novos`);
+  }
+
+  /**
+   * Gera embedding e salva no banco para não precisar regenerar
+   */
+  private async generateAndSaveEmbedding(vehicleId: string, description: string): Promise<number[]> {
+    const embedding = await generateEmbedding(description);
+    
+    // Salvar no banco para próxima inicialização
+    await prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        embedding: JSON.stringify(embedding),
+        embeddingModel: 'text-embedding-3-small',
+        embeddingGeneratedAt: new Date(),
+      },
+    }).catch((error) => {
+      console.warn(`⚠️ Erro ao salvar embedding do veículo ${vehicleId}:`, error.message);
+    });
+
+    return embedding;
   }
 
   async search(queryText: string, limit: number = 5): Promise<string[]> {

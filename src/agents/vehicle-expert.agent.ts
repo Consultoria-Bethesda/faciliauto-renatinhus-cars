@@ -296,14 +296,16 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
         if (isAvailabilityQuestion) {
           // Detect which vehicle type user is asking about
           const askedBodyType = vehicleTypeKeywords.find(kw => messageLower.includes(kw));
-          const normalizedBodyType = askedBodyType === 'picape' || askedBodyType === 'caminhonete' ? 'pickup' : askedBodyType;
+          const normalizedBodyType = (askedBodyType === 'picape' || askedBodyType === 'caminhonete' ? 'pickup' : askedBodyType) as 'sedan' | 'hatch' | 'suv' | 'pickup' | 'minivan' | undefined;
           
           logger.info({ userMessage, askedBodyType: normalizedBodyType }, 'User asking about vehicle availability');
           
           // Update profile with the asked bodyType and get recommendations
-          updatedProfile.bodyType = normalizedBodyType;
-          if (!updatedProfile.priorities) {
-            updatedProfile.priorities = [normalizedBodyType];
+          if (normalizedBodyType) {
+            updatedProfile.bodyType = normalizedBodyType;
+            if (!updatedProfile.priorities) {
+              updatedProfile.priorities = [normalizedBodyType];
+            }
           }
           
           const result = await this.getRecommendations(updatedProfile);
