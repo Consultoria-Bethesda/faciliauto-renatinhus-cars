@@ -3,6 +3,7 @@ import { cache } from '../lib/redis';
 import { logger } from '../lib/logger';
 import { guardrails } from './guardrails.service';
 import { conversationGraph } from '../graph/conversation-graph';
+import { langGraphConversation } from '../graph/langgraph-conversation';
 import { ConversationState } from '../types/state.types';
 import { dataRightsService } from './data-rights.service';
 import { featureFlags } from '../lib/feature-flags';
@@ -116,11 +117,13 @@ Para começar, qual é o seu nome?`;
 
       // 🚦 FEATURE FLAG: Decide between conversational or quiz mode
       const useConversational = featureFlags.shouldUseConversationalMode(phoneNumber);
+      const useLangGraph = featureFlags.isEnabled('USE_LANGGRAPH', phoneNumber);
 
       logger.info({
         conversationId: conversation.id,
         phoneNumber: phoneNumber.substring(0, 8) + '****',
         useConversational,
+        useLangGraph,
         hasCache: !!currentState,
         currentNode: currentState?.graph.currentNode,
       }, 'Routing decision');
@@ -128,22 +131,22 @@ Para começar, qual é o seu nome?`;
       let newState: ConversationState;
       let response: string;
 
-      if (useConversational) {
-        // 🆕 Use conversational mode (VehicleExpertAgent)
-        logger.debug({ conversationId: conversation.id }, 'Processing with Conversational mode');
+      if (useLangGraph || useConversational) {
+        // 🆕 Use integrated LangGraph + VehicleExpertAgent
+        logger.debug({ conversationId: conversation.id }, 'Processing with LangGraph (integrated mode)');
 
         // Initialize state if new conversation
         if (!currentState) {
           currentState = this.initializeState(conversation.id, phoneNumber);
         }
 
-        const result = await conversationalHandler.handleMessage(sanitizedMessage, currentState);
-        newState = result.updatedState;
+        const result = await langGraphConversation.processMessage(sanitizedMessage, currentState);
+        newState = result.newState;
         response = result.response;
 
       } else {
-        // 📋 Use legacy quiz mode (LangGraph)
-        logger.debug({ conversationId: conversation.id }, 'Processing with LangGraph (quiz mode)');
+        // 📋 Use legacy quiz mode (old LangGraph)
+        logger.debug({ conversationId: conversation.id }, 'Processing with legacy quiz mode');
 
         newState = await conversationGraph.invoke({
           conversationId: conversation.id,

@@ -87,6 +87,26 @@ export class FeatureFlagService {
   isTestNumber(phoneNumber: string): boolean {
     return this.TEST_NUMBERS.includes(phoneNumber);
   }
+
+  /**
+   * Check if a specific feature flag is enabled
+   */
+  isEnabled(flagName: string, phoneNumber?: string): boolean {
+    // Environment variable based flags
+    const envFlags: Record<string, boolean> = {
+      'USE_LANGGRAPH': env.ENABLE_CONVERSATIONAL_MODE, // LangGraph is tied to conversational mode
+      'ENABLE_CONVERSATIONAL_MODE': env.ENABLE_CONVERSATIONAL_MODE,
+    };
+
+    const isGloballyEnabled = envFlags[flagName] ?? false;
+    
+    // If not globally enabled, check if it's a test number
+    if (!isGloballyEnabled && phoneNumber) {
+      return this.isTestNumber(phoneNumber);
+    }
+
+    return isGloballyEnabled;
+  }
 }
 
 // Singleton export
