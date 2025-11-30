@@ -933,7 +933,7 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
 
     const criteria = parts.length > 0 ? ` para ${parts.join(', ')}` : '';
 
-    return `Perfeito! Encontrei ${count} veículo${count > 1 ? 's' : ''} IDEAL${count > 1 ? 'IS' : ''}${criteria}:`;
+    return `Perfeito! Encontrei ${count} veículo${count > 1 ? 's IDEAIS' : ' IDEAL'}${criteria}:`;
   }
 
   /**
