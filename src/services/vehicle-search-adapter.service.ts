@@ -40,11 +40,11 @@ export class VehicleSearchAdapter {
     try {
       const limit = filters.limit || 5;
 
-      // Se tem filtro de marca ou modelo específico, fazer busca DIRETA no banco
+      // Se tem filtro de marca, modelo OU categoria específica, fazer busca DIRETA no banco
       // (não depender da busca semântica que pode não retornar o veículo)
-      if (filters.brand || filters.model) {
-        logger.info({ brand: filters.brand, model: filters.model, query }, 'Direct database search for specific brand/model');
-        return this.searchDirectByBrandModel(filters);
+      if (filters.brand || filters.model || filters.bodyType) {
+        logger.info({ brand: filters.brand, model: filters.model, bodyType: filters.bodyType, query }, 'Direct database search for specific filter');
+        return this.searchDirectByFilters(filters);
       }
 
       // Get vehicle IDs from semantic search
@@ -134,9 +134,9 @@ export class VehicleSearchAdapter {
   }
 
   /**
-   * Busca direta por marca e/ou modelo específico (não usa busca semântica)
+   * Busca direta por marca, modelo e/ou categoria (não usa busca semântica)
    */
-  private async searchDirectByBrandModel(filters: SearchFilters): Promise<VehicleRecommendation[]> {
+  private async searchDirectByFilters(filters: SearchFilters): Promise<VehicleRecommendation[]> {
     const limit = filters.limit || 5;
 
     const vehicles = await prisma.vehicle.findMany({
@@ -146,12 +146,13 @@ export class VehicleSearchAdapter {
         ...(filters.brand && { marca: { contains: filters.brand, mode: 'insensitive' } }),
         // Filtro de modelo (se especificado)
         ...(filters.model && { modelo: { contains: filters.model, mode: 'insensitive' } }),
+        // Filtro de categoria/carroceria (se especificado)
+        ...(filters.bodyType && { carroceria: { equals: filters.bodyType, mode: 'insensitive' } }),
         // Apply other filters
         ...(filters.maxPrice && { preco: { lte: filters.maxPrice } }),
         ...(filters.minPrice && { preco: { gte: filters.minPrice } }),
         ...(filters.minYear && { ano: { gte: filters.minYear } }),
         ...(filters.maxKm && { km: { lte: filters.maxKm } }),
-        ...(filters.bodyType && { carroceria: { equals: filters.bodyType, mode: 'insensitive' } }),
         ...(filters.transmission && { cambio: { equals: filters.transmission, mode: 'insensitive' } }),
       },
       take: limit,
@@ -162,7 +163,12 @@ export class VehicleSearchAdapter {
       ],
     });
 
-    logger.info({ brand: filters.brand, model: filters.model, found: vehicles.length }, 'Direct brand/model search results');
+    logger.info({ 
+      brand: filters.brand, 
+      model: filters.model, 
+      bodyType: filters.bodyType,
+      found: vehicles.length 
+    }, 'Direct filter search results');
 
     return this.formatVehicleResults(vehicles);
   }
