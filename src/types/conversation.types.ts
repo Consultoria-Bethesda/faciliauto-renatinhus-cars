@@ -141,6 +141,7 @@ export interface VehicleSearchQuery {
     transmission?: string[];
     fuelType?: string[];
     brand?: string[];
+    model?: string[];  // Modelo específico (ex: "Compass", "Civic")
   };
   
   // Soft preferences (for scoring)

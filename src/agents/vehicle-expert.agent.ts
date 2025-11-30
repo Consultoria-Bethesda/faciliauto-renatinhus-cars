@@ -734,11 +734,13 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         profile.usage === 'trabalho' ||
         profile.priorities?.includes('trabalho');
 
-      // Search vehicles
+      // Search vehicles - include brand/model filter for specific requests
       const results = await vehicleSearchAdapter.search(query.searchText, {
         maxPrice: query.filters.maxPrice,
         minYear: query.filters.minYear,
         bodyType: wantsPickup ? 'pickup' : query.filters.bodyType?.[0],
+        brand: query.filters.brand?.[0], // Filtrar por marca quando especificada
+        model: query.filters.model?.[0], // Filtrar por modelo quando especificado
         limit: 10, // Get more to filter
         // Apply Uber filters
         aptoUber: isUberX || undefined,
@@ -963,7 +965,8 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
         maxKm: profile.maxKm,
         bodyType: profile.bodyType ? [profile.bodyType] : undefined,
         transmission: profile.transmission ? [profile.transmission] : undefined,
-        brand: profile.brand ? [profile.brand] : undefined
+        brand: profile.brand ? [profile.brand] : undefined,
+        model: profile.model ? [profile.model] : undefined  // Modelo específico
       },
       preferences: {
         usage: profile.usage,
