@@ -139,6 +139,9 @@ export class VehicleSearchAdapter {
   private async searchDirectByFilters(filters: SearchFilters): Promise<VehicleRecommendation[]> {
     const limit = filters.limit || 5;
 
+    // Mapear variações de categoria para busca
+    const bodyTypeVariations = this.getBodyTypeVariations(filters.bodyType);
+
     const vehicles = await prisma.vehicle.findMany({
       where: {
         disponivel: true,
@@ -146,8 +149,10 @@ export class VehicleSearchAdapter {
         ...(filters.brand && { marca: { contains: filters.brand, mode: 'insensitive' } }),
         // Filtro de modelo (se especificado)
         ...(filters.model && { modelo: { contains: filters.model, mode: 'insensitive' } }),
-        // Filtro de categoria/carroceria (se especificado)
-        ...(filters.bodyType && { carroceria: { equals: filters.bodyType, mode: 'insensitive' } }),
+        // Filtro de categoria/carroceria (se especificado) - com variações
+        ...(bodyTypeVariations.length > 0 && {
+          OR: bodyTypeVariations.map(bt => ({ carroceria: { contains: bt, mode: 'insensitive' as const } }))
+        }),
         // Apply other filters
         ...(filters.maxPrice && { preco: { lte: filters.maxPrice } }),
         ...(filters.minPrice && { preco: { gte: filters.minPrice } }),
@@ -167,10 +172,34 @@ export class VehicleSearchAdapter {
       brand: filters.brand, 
       model: filters.model, 
       bodyType: filters.bodyType,
+      bodyTypeVariations,
       found: vehicles.length 
     }, 'Direct filter search results');
 
     return this.formatVehicleResults(vehicles);
+  }
+
+  /**
+   * Retorna variações de nome para cada tipo de carroceria
+   * Ex: "pickup" -> ["pickup", "picape", "caminhonete"]
+   */
+  private getBodyTypeVariations(bodyType?: string): string[] {
+    if (!bodyType) return [];
+    
+    const bt = bodyType.toLowerCase();
+    
+    // Mapeamento de variações
+    const variations: Record<string, string[]> = {
+      'pickup': ['pickup', 'picape', 'caminhonete', 'cabine'],
+      'picape': ['pickup', 'picape', 'caminhonete', 'cabine'],
+      'suv': ['suv'],
+      'sedan': ['sedan', 'sedã'],
+      'hatch': ['hatch', 'hatchback'],
+      'hatchback': ['hatch', 'hatchback'],
+      'minivan': ['minivan', 'monovolume', 'mpv'],
+    };
+    
+    return variations[bt] || [bodyType];
   }
 
   /**
