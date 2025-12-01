@@ -51,6 +51,7 @@ O sistema utiliza um **router inteligente** com fallback automático e circuit b
 ### Backend & IA
 - **Node.js 20+** com TypeScript 5.3
 - **Express.js** - API REST
+- **LangChain / LangGraph** - Orquestração de conversas com máquina de estados
 - **OpenAI SDK** - GPT-4o-mini (LLM primário) + Embeddings
 - **Groq SDK** - LLaMA 3.1 8B Instant (LLM fallback)
 - **Cohere SDK** - Embeddings multilingual (fallback)
@@ -75,6 +76,50 @@ O sistema utiliza um **router inteligente** com fallback automático e circuit b
 - **Pino** - Structured logging
 - **Husky** - Git hooks (pre-commit)
 
+## 🔄 LangGraph - Orquestração de Conversas
+
+O sistema utiliza **LangGraph** para gerenciar o fluxo de estados da conversa de forma declarativa:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LangGraph State Machine                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   START → GREETING → DISCOVERY → CLARIFICATION → RECOMMENDATION │
+│               │           ↑            ↑              │         │
+│               │           │            │              ▼         │
+│               │           └────────────┴────────  FOLLOW_UP     │
+│               │                                       │         │
+│               └──────────────── HANDOFF ◄────────────┘         │
+│                                    │                            │
+│                                   END                           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Estados do Grafo
+
+| Estado | Descrição |
+|--------|-----------|
+| **GREETING** | Boas-vindas e coleta de nome do cliente |
+| **DISCOVERY** | Descoberta inicial: o que o cliente busca |
+| **CLARIFICATION** | Perguntas para refinar o perfil (budget, uso, etc) |
+| **RECOMMENDATION** | Apresentação das recomendações de veículos |
+| **FOLLOW_UP** | Acompanhamento pós-recomendação |
+| **HANDOFF** | Transferência para vendedor humano |
+
+### Nodes Especializados
+
+Cada estado é processado por um **node** especializado:
+
+```typescript
+// src/graph/nodes/
+├── greeting.node.ts      // ISO42001: AI disclosure na primeira mensagem
+├── quiz.node.ts          // Coleta de preferências estruturada
+├── search.node.ts        // Busca vetorial + filtros
+└── recommendation.node.ts // Apresentação com reasoning
+```
+
 ## 🏗️ Arquitetura de Agentes
 
 ```
@@ -89,9 +134,10 @@ O sistema utiliza um **router inteligente** com fallback automático e circuit b
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│                 Orchestrator Agent                           │
-│  • Intent classification (QUALIFICAR, HUMANO, DUVIDA)       │
-│  • Conversation state management                            │
+│              LangGraph Conversation Manager                  │
+│  • State machine orchestration                              │
+│  • Transition conditions evaluation                         │
+│  • Node routing (greeting → quiz → recommendation)          │
 └──────────┬──────────┬──────────┬───────────────────────────┘
            │          │          │
     ┌──────▼──┐ ┌─────▼────┐ ┌──▼─────────────┐
