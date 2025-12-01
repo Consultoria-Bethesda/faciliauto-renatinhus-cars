@@ -8,12 +8,12 @@ const QUIZ_QUESTIONS = [
   {
     id: 1,
     field: 'budget',
-    question: '💰 Qual seu orçamento disponível para o carro?\n\n_Exemplo: 50000 ou 50 mil_',
+    question: '💰 Até quanto você pretende investir no carro?\n\n_Exemplo: 50000 ou 50 mil_',
     validator: (answer: string) => {
       const cleaned = answer.replace(/[^\d]/g, '');
       const value = parseInt(cleaned);
       if (!value || value < 5000) {
-        return { valid: false, error: '❌ Por favor, digite um valor válido acima de R$ 5.000.\n\n💰 Qual seu orçamento disponível para o carro?\n\n_Exemplo: 50000 ou 50 mil_' };
+        return { valid: false, error: '❌ Por favor, digite um valor válido acima de R$ 5.000.\n\n💰 Até quanto você pretende investir no carro?\n\n_Exemplo: 50000 ou 50 mil_' };
       }
       return { valid: true, value };
     },

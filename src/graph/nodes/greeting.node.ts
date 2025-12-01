@@ -22,7 +22,7 @@ export async function greetingNode(state: ConversationState): Promise<StateUpdat
 
 Leva menos de 2 minutos! Vamos começar?
 
-💰 Qual seu orçamento disponível para o carro?
+💰 Até quanto você pretende investir no carro?
 
 _Exemplo: 50000 ou 50 mil_`;
   } else {
@@ -31,7 +31,7 @@ _Exemplo: 50000 ou 50 mil_`;
 
 Vamos continuar de onde paramos.
 
-💰 Qual seu orçamento disponível para o carro?
+💰 Até quanto você pretende investir no carro?
 
 _Exemplo: 50000 ou 50 mil_`;
   }

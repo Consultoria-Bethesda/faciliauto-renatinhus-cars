@@ -26,7 +26,7 @@ describe('Quiz Agent - E2E', () => {
     it('deve incluir primeira pergunta na mensagem de boas-vindas', () => {
       const message = quizAgent.getWelcomeMessage();
       
-      expect(message).toContain('orçamento');
+      expect(message).toContain('investir');
     });
 
     it('deve mencionar quantidade de perguntas', () => {

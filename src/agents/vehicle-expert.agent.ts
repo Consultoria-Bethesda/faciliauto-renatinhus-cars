@@ -92,7 +92,7 @@ RESPONSABILIDADES:
 
 📝 FORMATO DE PERGUNTAS:
 - Perguntas abertas quando apropriado: "Me conta, o que você busca?"
-- Perguntas específicas quando necessário: "Qual seu orçamento aproximado?"
+- Perguntas específicas quando necessário: "Até quanto você pretende investir?"
 - Sempre contextualize: "Para viagens em família, temos SUVs e sedans. Quantas pessoas costumam viajar?"
 
 🎨 EXEMPLOS DE BOA CONDUÇÃO:
@@ -166,7 +166,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
             
             // Start asking questions to build profile for suggestions
             return {
-              response: `Ótimo! Vou te fazer algumas perguntas rápidas para encontrar o carro ideal pra você. 🚗\n\n💰 Qual seu orçamento aproximado?`,
+              response: `Ótimo! Vou te fazer algumas perguntas rápidas para encontrar o carro ideal pra você. 🚗\n\n💰 Até quanto você pretende investir no carro?`,
               extractedPreferences: { ...extracted.extracted, _waitingForSuggestionResponse: false, _searchedItem: undefined },
               needsMoreInfo: ['budget', 'usage', 'people'],
               canRecommend: false,
@@ -683,7 +683,7 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       const { profile, missingFields } = options;
 
       if (missingFields.includes('budget') || !profile.budget) {
-        return '💰 Qual seu orçamento aproximado para o carro?';
+        return '💰 Até quanto você pretende investir no carro?';
       }
       if (missingFields.includes('usage') || !profile.usage) {
         return '🚗 Qual vai ser o uso principal? Cidade, viagens, trabalho?';

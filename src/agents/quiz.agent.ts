@@ -13,7 +13,7 @@ const EXIT_FOOTER = '\n\n💡 _Digite "sair" ou "cancelar" para recomeçar_';
 const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 'budget',
-    question: `💰 Qual seu orçamento disponível para o carro?\n\n_Exemplo: 50000 ou 50 mil_${EXIT_FOOTER}`,
+    question: `💰 Até quanto você pretende investir no carro?\n\n_Exemplo: 50000 ou 50 mil_${EXIT_FOOTER}`,
     type: 'text',
   },
   {

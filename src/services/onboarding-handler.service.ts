@@ -243,16 +243,16 @@ E qual vai ser o uso principal? Cidade, viagens, trabalho ou aplicativo (Uber/99
     // If we only have usage, ask for budget
     else if (hasUsage && !hasBudget) {
       if (context.usoPrincipal === 'uber' || context.usoPrincipal === 'aplicativo') {
-        response = `Legal! Para Uber/99, temos vários modelos aptos. Qual seu orçamento aproximado?`;
+        response = `Legal! Para Uber/99, temos vários modelos aptos. Até quanto você pretende investir?`;
       } else if (context.usoPrincipal === 'familia') {
-        response = `Ótimo! Para família temos SUVs e Sedans espaçosos. Qual seu orçamento aproximado?`;
+        response = `Ótimo! Para família temos SUVs e Sedans espaçosos. Até quanto você pretende investir?`;
       } else {
-        response = `Entendi! Qual seu orçamento aproximado?`;
+        response = `Entendi! Até quanto você pretende investir no carro?`;
       }
     }
     // If we have neither, ask for both
     else {
-      response = `Me conta: qual vai ser o uso principal do carro e qual seu orçamento aproximado?`;
+      response = `Me conta: qual vai ser o uso principal do carro e até quanto você pretende investir?`;
     }
 
     return {
