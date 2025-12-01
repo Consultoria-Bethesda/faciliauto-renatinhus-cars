@@ -1,6 +1,6 @@
 # 🚗 FaciliAuto WhatsApp AI Assistant
 
-> Assistente inteligente de vendas automotivas via WhatsApp com IA Generativa e RAG
+> Assistente inteligente de vendas automotivas via WhatsApp com IA Generativa, RAG e Multi-LLM Routing
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)](https://nodejs.org/)
@@ -9,41 +9,58 @@
 
 ## 📋 Sobre o Projeto
 
-Sistema MVP de assistente de vendas para concessionárias via WhatsApp, utilizando **IA Generativa** (Groq/OpenAI), **RAG** (Retrieval-Augmented Generation) e **NLP** para recomendações personalizadas de veículos.
+Sistema MVP de assistente de vendas para concessionárias via WhatsApp, utilizando **IA Generativa** com sistema de **Multi-LLM Routing**, **RAG** (Retrieval-Augmented Generation), **Embeddings Vetoriais** e **NLP** para recomendações personalizadas de veículos.
 
 ### ✨ Features Principais
 
-- 🤖 **IA Conversacional** - Atendimento via WhatsApp com LLM Router (GPT-4o-mini + Groq fallback)
-- 🎯 **Sistema de Recomendação** - RAG híbrido (40% semântico + 60% regras)
-- 🔍 **Busca Vetorial** - OpenAI Embeddings (text-embedding-3-small, 1536 dim)
+- 🤖 **IA Conversacional** - Atendimento via WhatsApp com Multi-LLM Routing
+- 🎯 **Sistema de Recomendação Inteligente** - LLM avalia adequação ao contexto do usuário
+- 🔍 **Busca Vetorial** - OpenAI Embeddings com fallback Cohere (1536 dim)
 - 📱 **Meta WhatsApp Business API** - Integração oficial
-- 🔒 **ISO42001 Compliant** - AI Management System + Guardrails
-- ✅ **100% Test Coverage** - 17 testes E2E (Vitest)
-- 🔄 **LLM Router** - Fallback automático com circuit breaker
+- 🔒 **ISO42001 Compliant** - AI Management System + Guardrails Anti-Injection
+- 🔄 **Circuit Breaker** - Alta disponibilidade com fallback automático
+- ✅ **Testes E2E** - Suite completa com Vitest
 
-## 🎯 Resultados Mensuráveis
+## 🤖 Arquitetura de LLMs
 
-- ⚡ **Resposta rápida** - GPT-4o-mini (~2-3s) com fallback Groq (~1s)
-- 💰 **Custos otimizados** - $0.15/1M tokens input, $0.60/1M output (GPT-4o-mini)
-- 🎯 **85%+ Match Score** médio nas recomendações
-- 🚀 **< 50ms** busca vetorial in-memory
-- ✅ **28/28 embeddings** gerados com sucesso
-- 🔄 **99.9% uptime** com fallback automático entre providers
+### LLM Router (Chat Completion)
+
+O sistema utiliza um **router inteligente** com fallback automático e circuit breaker:
+
+| Prioridade | Provider | Modelo | Custo/1M tokens |
+|------------|----------|--------|-----------------|
+| 1️⃣ Primário | OpenAI | `gpt-4o-mini` | $0.15 input / $0.60 output |
+| 2️⃣ Fallback | Groq | `llama-3.1-8b-instant` | $0.05 input / $0.08 output |
+| 3️⃣ Último recurso | Mock | - | Desenvolvimento |
+
+### Embedding Router (Busca Vetorial)
+
+| Prioridade | Provider | Modelo | Dimensões | Custo/1M tokens |
+|------------|----------|--------|-----------|-----------------|
+| 1️⃣ Primário | OpenAI | `text-embedding-3-small` | 1536 | $0.02 |
+| 2️⃣ Fallback | Cohere | `embed-multilingual-v3.0` | 1024→1536 | $0.01 |
+
+**Features do Router:**
+- ✅ **Circuit Breaker** - Previne chamadas repetidas a serviços falhando (3 falhas = 1 min timeout)
+- ✅ **Retry automático** - 2 tentativas por provider com backoff exponencial
+- ✅ **Fallback em cascata** - Se primário falhar, tenta próximo da lista
+- ✅ **Mock mode** - Para desenvolvimento sem API keys
 
 ## 🛠️ Stack Tecnológico
 
 ### Backend & IA
-- **Node.js 20+** com TypeScript 5
+- **Node.js 20+** com TypeScript 5.3
 - **Express.js** - API REST
-- **OpenAI API** - GPT-4o-mini (LLM primário) + Embeddings (text-embedding-3-small)
-- **Groq SDK** - LLaMA 3.1 8B Instant (fallback LLM)
-- **LLM Router** - Fallback automático com circuit breaker
+- **OpenAI SDK** - GPT-4o-mini (LLM primário) + Embeddings
+- **Groq SDK** - LLaMA 3.1 8B Instant (LLM fallback)
+- **Cohere SDK** - Embeddings multilingual (fallback)
 - **Prisma ORM** - Type-safe database client
+- **Zod** - Schema validation
 
 ### Database & Storage
-- **PostgreSQL 14+** - Banco relacional
-- **Redis** - Cache distribuído (opcional)
-- **In-Memory Vector Search** - < 50ms
+- **PostgreSQL 14+** - Banco relacional principal
+- **In-Memory Vector Store** - Busca vetorial < 50ms
+- **Embeddings persistidos** - Cache no banco para não regenerar
 
 ### Integrações
 - **Meta WhatsApp Business API** - Messaging oficial
@@ -53,19 +70,133 @@ Sistema MVP de assistente de vendas para concessionárias via WhatsApp, utilizan
 ### DevOps & Quality
 - **Docker** - Containerização
 - **Railway** - Deployment
-- **Vitest** - Testing framework (17 testes E2E)
+- **Vitest** - Testing framework
 - **GitHub Actions** - CI/CD
-- **Sentry** - Error tracking
 - **Pino** - Structured logging
+- **Husky** - Git hooks (pre-commit)
+
+## 🏗️ Arquitetura de Agentes
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WhatsApp Business API                     │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│                   Message Handler                            │
+│  • Guardrails (anti-injection, rate limiting)               │
+│  • Input validation & sanitization                          │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│                 Orchestrator Agent                           │
+│  • Intent classification (QUALIFICAR, HUMANO, DUVIDA)       │
+│  • Conversation state management                            │
+└──────────┬──────────┬──────────┬───────────────────────────┘
+           │          │          │
+    ┌──────▼──┐ ┌─────▼────┐ ┌──▼─────────────┐
+    │  Quiz   │ │ Vehicle  │ │ Recommendation │
+    │  Agent  │ │  Expert  │ │     Agent      │
+    └────┬────┘ └────┬─────┘ └───────┬────────┘
+         │          │               │
+┌────────▼──────────▼───────────────▼─────────────────────────┐
+│                    LLM Router                                │
+│  • GPT-4o-mini (primário) → Groq LLaMA (fallback) → Mock    │
+│  • Circuit breaker + Retry automático                       │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│               In-Memory Vector Store                         │
+│  • OpenAI Embeddings (primário) → Cohere (fallback)         │
+│  • Cosine similarity search < 50ms                          │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│                   PostgreSQL + Prisma                        │
+│  • Vehicles, Conversations, Recommendations, Leads          │
+│  • Embeddings persistidos                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Agentes Especializados
+
+| Agente | Responsabilidade |
+|--------|------------------|
+| **OrchestratorAgent** | Classificação de intenção e roteamento |
+| **QuizAgent** | Coleta de preferências (8 perguntas) |
+| **RecommendationAgent** | Avaliação de veículos com LLM + busca de modelo específico |
+| **VehicleExpertAgent** | Especialista em detalhes técnicos |
+| **PreferenceExtractorAgent** | Extração de preferências de texto livre |
+
+## 🔒 Segurança & Compliance
+
+### Guardrails Service
+
+- **Rate Limiting** - 10 msgs/min por usuário
+- **Prompt Injection Detection** - 30+ patterns (PT-BR e EN)
+- **Input Sanitization** - Remove caracteres de controle, HTML
+- **Output Validation** - Detecta vazamento de system prompts
+- **Message Length Limits** - 1000 chars input, 4096 output
+
+### ISO42001 Compliance
+
+- **Disclaimers automáticos** - Transparência sobre IA
+- **Audit Logs** - Rastreamento completo de eventos
+- **Anti-hallucination** - Guardrails para respostas seguras
+- **LGPD Ready** - Estrutura para direitos de dados
+
+## 📊 Modelo de Dados
+
+```prisma
+model Vehicle {
+  id              String   @id
+  marca           String
+  modelo          String
+  versao          String?
+  ano             Int
+  km              Int
+  preco           Float
+  carroceria      String   // hatch, sedan, SUV, picape
+  combustivel     String
+  cambio          String
+  // Embeddings
+  embedding       String?  // JSON array (1536 dim)
+  embeddingModel  String?
+  // Contextos de uso
+  aptoUber        Boolean
+  aptoFamilia     Boolean
+  // ...
+}
+
+model Conversation {
+  id              String   @id
+  phoneNumber     String
+  status          String   // active, qualified, converted
+  currentStep     String   // greeting, quiz, recommendation
+  quizAnswers     String?  // JSON
+  // Relations
+  recommendations Recommendation[]
+  lead            Lead?
+}
+
+model Recommendation {
+  id              String   @id
+  vehicleId       String
+  matchScore      Int      // 0-100
+  reasoning       String   // Justificativa LLM
+  position        Int      // 1, 2, 3 (top 3)
+}
+```
 
 ## 🚀 Quick Start
 
 ### Pré-requisitos
 
 - Node.js 20+ e npm
-- PostgreSQL 14+ (ou SQLite para dev)
-- Groq API Key (gratuita)
+- PostgreSQL 14+
 - OpenAI API Key
+- Groq API Key (opcional, fallback)
+- Cohere API Key (opcional, fallback embeddings)
 - Meta WhatsApp Business Account
 
 ### Instalação
@@ -85,7 +216,7 @@ cp .env.example .env
 # Execute as migrations
 npm run db:push
 
-# Popule o banco com dados reais (28 veículos)
+# Popule o banco com dados reais
 npm run db:seed:real
 
 # Gere os embeddings OpenAI
@@ -101,14 +232,19 @@ npm run dev
 # Database
 DATABASE_URL="postgresql://user:pass@localhost:5432/faciliauto"
 
-# AI/ML
-GROQ_API_KEY="gsk-..." # https://console.groq.com/
-OPENAI_API_KEY="sk-proj-..." # https://platform.openai.com/
+# LLM Providers (com fallback automático)
+OPENAI_API_KEY="sk-proj-..."    # Primário (LLM + Embeddings)
+GROQ_API_KEY="gsk-..."          # Fallback LLM (opcional)
+COHERE_API_KEY="..."            # Fallback Embeddings (opcional)
 
 # WhatsApp
 META_WHATSAPP_TOKEN="EAA..."
 META_WHATSAPP_PHONE_NUMBER_ID="123..."
 META_WEBHOOK_VERIFY_TOKEN="faciliauto_webhook_2025"
+
+# Feature Flags
+ENABLE_CONVERSATIONAL_MODE="true"
+CONVERSATIONAL_ROLLOUT_PERCENTAGE="100"
 
 # Environment
 NODE_ENV="production"
@@ -120,13 +256,14 @@ PORT=3000
 ```bash
 # Desenvolvimento
 npm run dev              # Inicia servidor de desenvolvimento
+npm run dev:api          # Servidor API sem WhatsApp
 npm run build            # Build para produção
 npm run start:prod       # Inicia servidor em produção
 
 # Database
 npm run db:push          # Aplica schema Prisma
 npm run db:studio        # Abre Prisma Studio
-npm run db:seed:real     # Popula com 28 veículos reais
+npm run db:seed:real     # Popula com veículos reais
 
 # Embeddings
 npm run embeddings:generate    # Gera embeddings OpenAI
@@ -138,9 +275,13 @@ npm test                 # Executa todos os testes
 npm run test:coverage    # Com coverage report
 npm run test:watch       # Watch mode
 npm run test:ui          # Interface visual
+npm run test:e2e         # Apenas testes E2E
+npm run test:integration # Apenas testes de integração
 
-# Benchmark
-npm run benchmark:llms   # Compara Groq vs GPT-4o vs GPT-4o-mini
+# Utilitários
+npm run conversations:reset     # Reset conversas de teste
+npm run vehicles:update-uber    # Atualiza elegibilidade Uber
+npm run benchmark:llms          # Compara performance LLMs
 ```
 
 ## 📁 Estrutura do Projeto
@@ -148,39 +289,53 @@ npm run benchmark:llms   # Compara Groq vs GPT-4o vs GPT-4o-mini
 ```
 faciliauto-mvp-v2/
 ├── src/
-│   ├── index.ts              # Entry point
-│   ├── lib/                  # Bibliotecas core
-│   │   ├── groq.ts           # Integração Groq (LLM)
-│   │   ├── embeddings.ts     # OpenAI Embeddings
-│   │   └── logger.ts         # Pino logger
-│   ├── services/             # Serviços de negócio
+│   ├── index.ts                    # Entry point
+│   ├── agents/                     # Agentes especializados
+│   │   ├── orchestrator.agent.ts   # Roteamento e intenção
+│   │   ├── quiz.agent.ts           # Coleta de preferências
+│   │   ├── recommendation.agent.ts # Recomendações com LLM
+│   │   ├── vehicle-expert.agent.ts # Especialista em veículos
+│   │   └── preference-extractor.agent.ts
+│   ├── lib/                        # Bibliotecas core
+│   │   ├── llm-router.ts           # Multi-LLM com fallback
+│   │   ├── embedding-router.ts     # Multi-Embedding com fallback
+│   │   ├── groq.ts                 # Integração Groq
+│   │   ├── embeddings.ts           # Wrapper embeddings
+│   │   ├── openai.ts               # Integração OpenAI
+│   │   ├── prisma.ts               # Database client
+│   │   └── logger.ts               # Pino logger
+│   ├── services/                   # Serviços de negócio
+│   │   ├── guardrails.service.ts   # Segurança e validação
+│   │   ├── in-memory-vector.service.ts  # Vector store
+│   │   ├── message-handler-v2.service.ts
 │   │   ├── whatsapp-meta.service.ts
-│   │   ├── message-handler.service.ts
-│   │   ├── vector-search.service.ts
-│   │   └── in-memory-vector.service.ts
-│   ├── agents/               # Agentes especializados
-│   │   ├── quiz.agent.ts
-│   │   ├── recommendation.agent.ts
-│   │   └── orchestrator.agent.ts
-│   └── config/               # Configurações
-│       └── env.ts
+│   │   └── vehicle-search-adapter.service.ts
+│   ├── routes/                     # Rotas Express
+│   │   ├── webhook.routes.ts       # WhatsApp webhooks
+│   │   ├── admin.routes.ts         # Admin endpoints
+│   │   └── debug.routes.ts         # Debug endpoints
+│   ├── config/                     # Configurações
+│   │   ├── env.ts                  # Variáveis de ambiente
+│   │   └── disclosure.messages.ts  # ISO42001 disclaimers
+│   └── graph/                      # LangGraph (experimental)
+│       └── conversation-graph.ts
 ├── prisma/
-│   ├── schema.prisma         # Database schema
-│   └── seeds/                # Seed scripts
-├── tests/                    # Suite de testes
-│   ├── e2e/
-│   ├── integration/
-│   └── unit/
-├── docs/                     # Documentação técnica
-│   └── development/          # Docs de desenvolvimento
-├── scripts/                  # Scripts utilitários
-└── .github/workflows/        # CI/CD GitHub Actions
+│   ├── schema.prisma               # Database schema
+│   └── seed-robustcar.ts           # Seed script
+├── tests/                          # Suite de testes
+│   ├── e2e/                        # Testes end-to-end
+│   ├── integration/                # Testes de integração
+│   ├── unit/                       # Testes unitários
+│   └── agents/                     # Testes de agentes
+├── docs/                           # Documentação técnica
+├── scripts/                        # Scripts utilitários
+└── .github/workflows/              # CI/CD GitHub Actions
 ```
 
 ## 🧪 Testes
 
 ```bash
-# Executar todos os testes (17 testes E2E)
+# Executar todos os testes
 npm test
 
 # Com coverage (target 80%+)
@@ -191,45 +346,70 @@ npm run test:ui
 
 # Watch mode (desenvolvimento)
 npm run test:watch
+
+# Testes específicos
+npm run test:e2e           # End-to-end
+npm run test:integration   # Integração
+npm run test:unit          # Unitários
 ```
 
-**Status:** ✅ 17/17 testes passando (100%)
+### Categorias de Testes
 
-## 📈 Performance & Benchmark
+| Categoria | Descrição |
+|-----------|-----------|
+| **E2E** | Fluxo conversacional completo, guardrails |
+| **Integration** | LLM integration, webhooks, API |
+| **Unit** | LLM router, embedding router, services |
+| **Agents** | Quiz agent, recommendation agent |
 
-### Arquitetura LLM Router
+## 🔄 Fluxo de Recomendação
 
-O sistema utiliza um **LLM Router inteligente** com fallback automático:
-
-| Prioridade | Provider | Modelo | Custo/1M tokens | Uso |
-|------------|----------|--------|-----------------|-----|
-| 1️⃣ Primário | OpenAI | GPT-4o-mini | $0.15 in / $0.60 out | Principal |
-| 2️⃣ Fallback | Groq | LLaMA 3.1 8B Instant | $0.05 in / $0.08 out | Backup |
-
-### Features do Router
-- **Circuit Breaker** - Evita chamadas repetidas a serviços falhando
-- **Retry automático** - 2 tentativas por provider
-- **Fallback em cascata** - Se OpenAI falhar, usa Groq automaticamente
-- **Mock mode** - Para desenvolvimento sem API keys
-
-**Benefícios:** Alta disponibilidade (99.9%+), custos otimizados, resiliência
-
-## 🔒 Compliance & Segurança
-
-- **ISO42001** - AI Management System
-- **LGPD** - Lei Geral de Proteção de Dados (em implementação)
-- **Guardrails** - Anti-hallucination measures
-- **Audit Logs** - Rastreamento completo
-- **Rate Limiting** - Proteção contra abuso
+```
+1. Usuário envia mensagem
+         │
+2. Guardrails valida input (injection, rate limit)
+         │
+3. Orchestrator classifica intenção
+         │
+4. Se QUALIFICAR → Quiz Agent (8 perguntas)
+         │
+5. Quiz completo → Recommendation Agent
+         │
+   ┌─────┴─────┐
+   │           │
+   ▼           ▼
+Modelo      Perfil
+Específico  Geral
+   │           │
+   ▼           ▼
+Busca       Pré-filtra
+Exata       por budget/ano/km
+   │           │
+   ▼           ▼
+Encontrou?  LLM avalia
+   │        adequação
+   │           │
+   └─────┬─────┘
+         │
+6. Top 3 recomendações com reasoning
+         │
+7. Salva no banco + evento
+         │
+8. Formata mensagem WhatsApp
+         │
+9. Guardrails valida output
+         │
+10. Envia para usuário
+```
 
 ## 📚 Documentação
 
 - [Arquitetura do Sistema](docs/development/RESUMO_IMPLEMENTACAO.md)
-- [Integração Groq](docs/development/COMPARACAO_LLMS.md)
-- [Embeddings OpenAI](docs/development/EMBEDDINGS_FINALIZADOS.md)
+- [LLM Routing Guide](docs/LLM_ROUTING_GUIDE.md)
 - [ISO42001 Compliance](docs/development/ISO42001_IMPLEMENTACAO_COMPLETA.md)
-- [Testes E2E](docs/development/TESTING_SUMMARY.md)
-- [Deploy Railway](docs/deployment/) (em breve)
+- [Guardrails Architecture](docs/GUARDRAILS_ADVANCED_ARCHITECTURE.md)
+- [Testing Summary](docs/development/TESTING_SUMMARY.md)
+- [Deploy Railway](docs/RAILWAY_DEPLOY_GUIDE.md)
 
 ## 🤝 Contribuindo
 
@@ -240,10 +420,6 @@ Contribuições são bem-vindas! Por favor:
 3. Commit suas mudanças (`git commit -m 'feat: add amazing feature'`)
 4. Push para a branch (`git push origin feature/amazing-feature`)
 5. Abra um Pull Request
-
-## 📝 Changelog
-
-Veja [CHANGELOG.md](CHANGELOG.md) para histórico de versões.
 
 ## 📄 Licença
 
@@ -258,8 +434,9 @@ Este projeto está sob a licença MIT. Veja [LICENSE](LICENSE) para mais detalhe
 
 ## 🙏 Agradecimentos
 
-- [Groq](https://groq.com/) - LLM ultra-rápido
-- [OpenAI](https://openai.com/) - Embeddings de alta qualidade
+- [OpenAI](https://openai.com/) - GPT-4o-mini e Embeddings
+- [Groq](https://groq.com/) - LLM ultra-rápido (fallback)
+- [Cohere](https://cohere.com/) - Embeddings multilingual
 - [Meta](https://developers.facebook.com/) - WhatsApp Business API
 - [Prisma](https://www.prisma.io/) - Type-safe ORM
 - [Vitest](https://vitest.dev/) - Testing framework moderno
@@ -268,4 +445,4 @@ Este projeto está sob a licença MIT. Veja [LICENSE](LICENSE) para mais detalhe
 
 ⭐ Se este projeto foi útil, considere dar uma estrela!
 
-**Status:** ✅ MVP 100% Funcional e Testado
+**Status:** ✅ MVP 100% Funcional | Multi-LLM Router | ISO42001 Compliant
