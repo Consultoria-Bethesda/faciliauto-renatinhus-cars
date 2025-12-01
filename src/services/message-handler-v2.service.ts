@@ -48,9 +48,11 @@ Até logo! 🚗`;
         logger.info({ phoneNumber }, 'User requested restart');
         return `🔄 Conversa reiniciada!
 
-Olá! 👋 Bem-vindo à *FaciliAuto*!
+👋 Olá! Sou a assistente virtual da *FaciliAuto*.
 
-Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
+🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas, posso transferir você para nossa equipe humana.
+
+💡 _A qualquer momento, digite *sair* para encerrar a conversa._
 
 Para começar, qual é o seu nome?`;
       }
@@ -68,9 +70,11 @@ Para começar, qual é o seu nome?`;
           logger.info({ phoneNumber }, 'User sent greeting, restarting conversation');
         }
 
-        return `Olá! 👋 Bem-vindo à *FaciliAuto*!
+        return `👋 Olá! Sou a assistente virtual da *FaciliAuto*.
 
-Sou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗
+🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas, posso transferir você para nossa equipe humana.
+
+💡 _A qualquer momento, digite *sair* para encerrar a conversa._
 
 Para começar, qual é o seu nome?`;
       }

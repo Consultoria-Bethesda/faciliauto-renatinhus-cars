@@ -343,7 +343,7 @@ export class LangGraphConversation {
       // Ainda não tem nome
       return {
         nextState: 'GREETING',
-        response: `Olá! 👋 Bem-vindo à *FaciliAuto*!\n\nSou seu assistente virtual e estou aqui para ajudar você a encontrar o carro usado perfeito! 🚗\n\nPara começar, qual é o seu nome?`,
+        response: `👋 Olá! Sou a assistente virtual da *FaciliAuto*.\n\n🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas, posso transferir você para nossa equipe humana.\n\n💡 _A qualquer momento, digite *sair* para encerrar a conversa._\n\nPara começar, qual é o seu nome?`,
         profile: {},
       };
     }
