@@ -2,19 +2,30 @@
 
 ## MVP Produção Concessionária Renatinhus Cars
 
-- [ ] 1. Configurar Web Scraper para Renatinhus Cars
-  - [ ] 1.1 Criar scraper service para extrair veículos do site
+- [x] 1. Configurar Web Scraper para Renatinhus Cars
+
+
+
+
+
+  - [x] 1.1 Criar scraper service para extrair veículos do site
+
+
     - Implementar função para fazer request HTTP ao site https://www.renatinhuscars.com.br/
     - Parsear HTML para extrair lista de veículos da página principal
     - Extrair URL do botão "MAIS DETALHES" de cada veículo
     - _Requirements: 1.1, 1.2_
-  - [ ] 1.2 Implementar extração de detalhes completos do veículo
+  - [x] 1.2 Implementar extração de detalhes completos do veículo
+
+
     - Acessar página de detalhes de cada veículo
     - Extrair: marca, modelo, versão, ano, km, preço, cor, combustível, câmbio, carroceria
     - Extrair URL da foto principal e fotos adicionais
     - Extrair descrição do veículo
     - _Requirements: 1.1, 1.3_
-  - [ ] 1.3 Implementar validação de dados extraídos
+  - [x] 1.3 Implementar validação de dados extraídos
+
+
     - Criar função de validação para campos obrigatórios
     - Retornar erros detalhados para campos faltantes
     - Continuar processamento mesmo com erros em veículos individuais
@@ -25,22 +36,35 @@
     - **Property 3: Validation catches missing required fields**
     - **Validates: Requirements 1.1, 1.2, 1.4**
 
-- [ ] 2. Implementar Sincronização de Estoque
-  - [ ] 2.1 Criar vehicle sync service
+- [x] 2. Implementar Sincronização de Estoque
+
+
+
+
+
+  - [x] 2.1 Criar vehicle sync service
+
+
     - Implementar função para comparar veículos do scraper com banco de dados
     - Criar novos veículos que não existem no banco
     - Atualizar veículos existentes com dados novos
     - _Requirements: 2.1, 2.2_
-  - [ ] 2.2 Implementar lógica de remoção de veículos
+  - [x] 2.2 Implementar lógica de remoção de veículos
+
+
     - Identificar veículos no banco que não estão mais no site
     - Marcar como indisponíveis (disponivel=false) em vez de deletar
     - Preservar histórico de recomendações
     - _Requirements: 2.3_
-  - [ ] 2.3 Garantir persistência do campo URL
+  - [x] 2.3 Garantir persistência do campo URL
+
+
     - Verificar que URL é salvo corretamente no banco
     - Validar que URL aponta para página de detalhes válida
     - _Requirements: 2.4_
-  - [ ] 2.4 Implementar logging de sincronização
+  - [x] 2.4 Implementar logging de sincronização
+
+
     - Logar contagem de veículos adicionados, atualizados e removidos
     - Logar erros encontrados durante sincronização
     - _Requirements: 2.5_
