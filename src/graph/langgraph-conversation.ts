@@ -14,11 +14,13 @@ import { vehicleExpert } from '../agents/vehicle-expert.agent';
 import { preferenceExtractor } from '../agents/preference-extractor.agent';
 import { ConversationState, CustomerProfile, BotMessage, VehicleRecommendation } from '../types/state.types';
 import { ConversationContext, ConversationMode, ConversationResponse } from '../types/conversation.types';
+import { shouldTriggerLeadForwarding, processLeadForwarding } from './nodes/lead-forwarding.node';
+import { leadForwardingService } from '../services/lead-forwarding.service';
 
 /**
  * Estados do grafo de conversação
  */
-export type GraphState = 
+export type GraphState =
   | 'START'
   | 'GREETING'        // Boas-vindas e coleta de nome
   | 'DISCOVERY'       // Descoberta inicial: o que o cliente busca
@@ -26,6 +28,7 @@ export type GraphState =
   | 'SEARCH'          // Busca de veículos (transição interna)
   | 'RECOMMENDATION'  // Apresentação de recomendações
   | 'FOLLOW_UP'       // Acompanhamento pós-recomendação
+  | 'LEAD_FORWARDING' // Encaminhamento de lead para vendedor
   | 'HANDOFF'         // Transferência para vendedor
   | 'END';
 
@@ -58,7 +61,7 @@ interface TransitionConditions {
  * Gerencia o fluxo de estados da conversa
  */
 export class LangGraphConversation {
-  
+
   /**
    * Processa uma mensagem e retorna o novo estado
    */
@@ -67,11 +70,11 @@ export class LangGraphConversation {
     state: ConversationState
   ): Promise<{ response: string; newState: ConversationState }> {
     const startTime = Date.now();
-    
+
     try {
       // 1. Identificar estado atual
       const currentState = this.identifyCurrentState(state);
-      
+
       logger.info({
         conversationId: state.conversationId,
         currentState,
@@ -85,7 +88,7 @@ export class LangGraphConversation {
         content: message,
         timestamp: new Date(),
       };
-      
+
       const stateWithMessage: ConversationState = {
         ...state,
         messages: [...state.messages, userMessage],
@@ -147,7 +150,7 @@ export class LangGraphConversation {
 
     } catch (error) {
       logger.error({ error, conversationId: state.conversationId }, 'LangGraph: Error processing message');
-      
+
       return {
         response: 'Desculpe, tive um problema ao processar sua mensagem. Pode reformular? 🤔',
         newState: {
@@ -203,8 +206,8 @@ export class LangGraphConversation {
    */
   private isValidState(state: string): boolean {
     const validStates: GraphState[] = [
-      'START', 'GREETING', 'DISCOVERY', 'CLARIFICATION', 
-      'SEARCH', 'RECOMMENDATION', 'FOLLOW_UP', 'HANDOFF', 'END'
+      'START', 'GREETING', 'DISCOVERY', 'CLARIFICATION',
+      'SEARCH', 'RECOMMENDATION', 'FOLLOW_UP', 'LEAD_FORWARDING', 'HANDOFF', 'END'
     ];
     return validStates.includes(state as GraphState);
   }
@@ -214,7 +217,7 @@ export class LangGraphConversation {
    */
   private evaluateConditions(state: ConversationState): TransitionConditions {
     const profile = state.profile || {};
-    
+
     return {
       hasName: !!profile.customerName,
       hasContext: !!(profile.usoPrincipal || profile.usage || profile.bodyType || profile.brand || profile.model),
@@ -256,7 +259,7 @@ export class LangGraphConversation {
     // Agendar visita
     if (lower.includes('agendar') || lower.includes('visita') || lower.includes('test drive')) {
       return {
-        response: `Ótimo! 🎉\n\nVou transferir você para nossa equipe de vendas para agendar sua visita.\n\nUm vendedor entrará em contato em breve para confirmar dia e horário.\n\nObrigado por escolher a FaciliAuto! 🚗`,
+        response: `Ótimo! 🎉\n\nVou transferir você para nossa equipe de vendas para agendar sua visita.\n\nUm vendedor entrará em contato em breve para confirmar dia e horário.\n\nObrigado por escolher a Renatinhu's Cars! 🚗`,
         newState: {
           ...state,
           graph: {
@@ -287,20 +290,23 @@ export class LangGraphConversation {
       case 'START':
       case 'GREETING':
         return this.processGreeting(message, state);
-      
+
       case 'DISCOVERY':
         return this.processDiscovery(message, state);
-      
+
       case 'CLARIFICATION':
         return this.processClarification(message, state);
-      
+
       case 'SEARCH':
       case 'RECOMMENDATION':
         return this.processRecommendation(message, state);
-      
+
       case 'FOLLOW_UP':
         return this.processFollowUp(message, state);
-      
+
+      case 'LEAD_FORWARDING':
+        return this.processLeadForwarding(message, state);
+
       default:
         return this.processWithVehicleExpert(message, state);
     }
@@ -315,7 +321,7 @@ export class LangGraphConversation {
   ): Promise<StateTransition> {
     // Primeira mensagem do usuário - provavelmente é o nome ou uma saudação
     const isGreeting = /^(oi|olá|ola|bom dia|boa tarde|boa noite|hey|hello|hi|e aí|eai)/i.test(message.trim());
-    
+
     // Verificar se já tem nome no perfil
     if (state.profile?.customerName) {
       // Já tem nome, perguntar o que procura
@@ -330,7 +336,7 @@ export class LangGraphConversation {
     if (isGreeting || state.messages.length <= 2) {
       // Tentar extrair nome se a mensagem parecer um nome
       const possibleName = this.extractName(message);
-      
+
       if (possibleName && !isGreeting) {
         // Parece ser um nome
         return {
@@ -343,14 +349,14 @@ export class LangGraphConversation {
       // Ainda não tem nome
       return {
         nextState: 'GREETING',
-        response: `👋 Olá! Sou a assistente virtual da *FaciliAuto*.\n\n🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas, posso transferir você para nossa equipe humana.\n\n💡 _A qualquer momento, digite *sair* para encerrar a conversa._\n\nPara começar, qual é o seu nome?`,
+        response: `👋 Olá! Sou a assistente virtual da *Renatinhu's Cars*.\n\n🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas, posso transferir você para nossa equipe humana.\n\n💡 _A qualquer momento, digite *sair* para encerrar a conversa._\n\nPara começar, qual é o seu nome?`,
         profile: {},
       };
     }
 
     // Tentar extrair nome da resposta
     const name = this.extractName(message);
-    
+
     if (name) {
       return {
         nextState: 'DISCOVERY',
@@ -372,11 +378,11 @@ export class LangGraphConversation {
    */
   private extractName(message: string): string | null {
     const cleaned = message.trim();
-    
+
     // Remover prefixos comuns
     const prefixes = ['meu nome é', 'me chamo', 'sou o', 'sou a', 'pode me chamar de', 'é', 'sou'];
     let name = cleaned;
-    
+
     for (const prefix of prefixes) {
       if (cleaned.toLowerCase().startsWith(prefix)) {
         name = cleaned.substring(prefix.length).trim();
@@ -388,7 +394,7 @@ export class LangGraphConversation {
     if (name.length < 2 || name.length > 50) return null;
     if (/^\d+$/.test(name)) return null; // Apenas números
     if (name.includes('?')) return null; // Pergunta
-    
+
     // Capitalizar primeira letra
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   }
@@ -403,7 +409,7 @@ export class LangGraphConversation {
     // Usar VehicleExpert para processar
     const context = this.buildContext(state, 'discovery');
     const response = await vehicleExpert.chat(message, context);
-    
+
     // Verificar se extraiu informações suficientes para avançar
     const updatedProfile = {
       ...state.profile,
@@ -412,7 +418,7 @@ export class LangGraphConversation {
 
     // Determinar próximo estado
     let nextState: GraphState = 'DISCOVERY';
-    
+
     if (response.canRecommend && response.recommendations && response.recommendations.length > 0) {
       nextState = 'RECOMMENDATION';
     } else if (updatedProfile.budget || updatedProfile.usage || updatedProfile.bodyType) {
@@ -439,7 +445,7 @@ export class LangGraphConversation {
 
     // Verificar se pode recomendar
     let nextState: GraphState = 'CLARIFICATION';
-    
+
     if (response.canRecommend && response.recommendations && response.recommendations.length > 0) {
       nextState = 'RECOMMENDATION';
     } else if (response.needsMoreInfo.length === 0) {
@@ -467,7 +473,7 @@ export class LangGraphConversation {
 
     // Se tem novas recomendações, atualizar
     let nextState: GraphState = state.recommendations.length > 0 ? 'FOLLOW_UP' : 'RECOMMENDATION';
-    
+
     if (response.recommendations && response.recommendations.length > 0) {
       nextState = 'FOLLOW_UP';
     }
@@ -482,19 +488,26 @@ export class LangGraphConversation {
 
   /**
    * Estado FOLLOW_UP: Acompanhamento pós-recomendação
+   * Requirements 11.1: Detect interest and transition to lead forwarding
    */
   private async processFollowUp(
     message: string,
     state: ConversationState
   ): Promise<StateTransition> {
+    // Check for interest in a vehicle (lead forwarding trigger)
+    // Requirements 11.1: Detect interest expressions
+    if (shouldTriggerLeadForwarding(state)) {
+      return this.processLeadForwarding(message, state);
+    }
+
     const context = this.buildContext(state, 'recommendation');
     const response = await vehicleExpert.chat(message, context);
 
     // Verificar se o usuário quer refinar a busca
     const wantsNewSearch = /nova busca|outro|diferente|mudar|alterar/i.test(message);
-    
+
     let nextState: GraphState = 'FOLLOW_UP';
-    
+
     if (wantsNewSearch) {
       nextState = 'DISCOVERY';
     } else if (response.recommendations && response.recommendations.length > 0) {
@@ -511,6 +524,93 @@ export class LangGraphConversation {
   }
 
   /**
+   * Estado LEAD_FORWARDING: Encaminhamento de lead para vendedor
+   * Requirements 11.1, 11.5: Detect interest and confirm to customer
+   */
+  private async processLeadForwarding(
+    message: string,
+    state: ConversationState
+  ): Promise<StateTransition> {
+    // Detect interest
+    const detection = leadForwardingService.detectInterest(message, state);
+
+    if (!detection.hasInterest || detection.confidence < 0.7) {
+      // No interest detected, continue with follow-up
+      const context = this.buildContext(state, 'recommendation');
+      const response = await vehicleExpert.chat(message, context);
+
+      return {
+        nextState: 'FOLLOW_UP',
+        response: response.response,
+        profile: response.extractedPreferences,
+        recommendations: response.recommendations || state.recommendations,
+      };
+    }
+
+    // Check if we have recommendations
+    if (!state.recommendations || state.recommendations.length === 0) {
+      return {
+        nextState: 'FOLLOW_UP',
+        response: 'Ainda não temos recomendações para você. Me conta mais sobre o que você procura! 🚗',
+        profile: {},
+      };
+    }
+
+    // Check if service is configured
+    if (!leadForwardingService.isConfigured()) {
+      logger.warn({
+        conversationId: state.conversationId,
+      }, 'LeadForwarding: SELLER_WHATSAPP_NUMBER not configured');
+
+      return {
+        nextState: 'HANDOFF',
+        response: `Ótimo! 🎉\n\nVou transferir você para nossa equipe de vendas.\n\nUm vendedor entrará em contato em breve!\n\nObrigado por escolher a Renatinhu's Cars! 🚗`,
+        profile: {},
+        metadata: {
+          flags: ['interest_detected', 'handoff_requested'],
+        },
+      };
+    }
+
+    // Get the vehicle of interest
+    const vehicleIndex = detection.vehicleIndex || 1;
+    const vehicleRec = state.recommendations[vehicleIndex - 1];
+
+    if (!vehicleRec || !vehicleRec.vehicle) {
+      return {
+        nextState: 'FOLLOW_UP',
+        response: 'Qual veículo te interessou? Digite o número (1-5) para eu registrar seu interesse! 😊',
+        profile: {},
+      };
+    }
+
+    // Generate confirmation message
+    // Note: Actual lead capture and sending happens in message handler
+    const customerName = state.profile?.customerName || 'Cliente';
+    const vehicleName = `${vehicleRec.vehicle.marca} ${vehicleRec.vehicle.modelo} ${vehicleRec.vehicle.ano}`;
+    const confirmationMessage = leadForwardingService.formatCustomerConfirmation(customerName, vehicleName);
+
+    logger.info({
+      conversationId: state.conversationId,
+      vehicleId: vehicleRec.vehicleId,
+      vehicleName,
+      intentType: detection.intentType,
+      confidence: detection.confidence,
+    }, 'LeadForwarding: Interest detected, transitioning to lead capture');
+
+    return {
+      nextState: 'LEAD_FORWARDING',
+      response: confirmationMessage,
+      profile: {},
+      metadata: {
+        flags: ['interest_detected', 'lead_pending', `interested_vehicle_${vehicleRec.vehicleId}`],
+        interestedVehicleId: vehicleRec.vehicleId,
+        interestedVehicleIndex: vehicleIndex,
+      },
+    };
+  }
+
+  /**
    * Fallback: Processa com VehicleExpert genérico
    */
   private async processWithVehicleExpert(
@@ -523,7 +623,7 @@ export class LangGraphConversation {
 
     // Inferir próximo estado
     let nextState: GraphState = state.graph.currentNode as GraphState || 'DISCOVERY';
-    
+
     if (response.nextMode) {
       nextState = this.modeToState(response.nextMode);
     }
@@ -569,6 +669,7 @@ export class LangGraphConversation {
       'SEARCH': 'ready_to_recommend',
       'RECOMMENDATION': 'recommendation',
       'FOLLOW_UP': 'refinement',
+      'LEAD_FORWARDING': 'recommendation',
       'HANDOFF': 'recommendation',
       'END': 'recommendation',
     };

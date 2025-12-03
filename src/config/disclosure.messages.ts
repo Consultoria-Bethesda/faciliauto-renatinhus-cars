@@ -7,7 +7,7 @@ export const DISCLOSURE_MESSAGES = {
   /**
    * Primeira mensagem - Aviso obrigatório de IA
    */
-  INITIAL_GREETING: `👋 Olá! Sou a assistente virtual da *FaciliAuto*.
+  INITIAL_GREETING: `👋 Olá! Sou a assistente virtual da *Renatinhu's Cars*.
 
 🤖 *Importante:* Sou uma inteligência artificial e posso cometer erros. Para informações mais precisas ou dúvidas complexas, posso transferir você para nossa equipe humana.
 
@@ -22,11 +22,11 @@ Como posso ajudar você hoje?`,
    */
   DISCLAIMERS: {
     PRICE: '\n\n⚠️ _Valores sujeitos a confirmação. Consulte nossa equipe para cotação exata._',
-    
+
     RECOMMENDATION: '\n\n💡 _Estas são sugestões baseadas em IA. Recomendamos avaliação presencial antes da decisão._',
-    
+
     TECHNICAL_INFO: '\n\n🔍 _Informação gerada automaticamente. Para detalhes técnicos precisos, consulte nossa equipe._',
-    
+
     AVAILABILITY: '\n\n📦 _Disponibilidade sujeita a confirmação em tempo real._',
   },
 
@@ -35,9 +35,9 @@ Como posso ajudar você hoje?`,
    */
   ERRORS: {
     AI_UNCERTAINTY: 'Desculpe, não tenho certeza sobre isso. Vou transferir você para um especialista que pode ajudar melhor! 👨‍💼',
-    
+
     COMPLEX_QUERY: 'Essa é uma ótima pergunta! Para garantir a melhor resposta, vou conectar você com nossa equipe. 🤝',
-    
+
     TECHNICAL_ERROR: 'Ops, tive um problema técnico. 🤖⚙️ Vou transferir você para atendimento humano.',
   },
 
@@ -46,9 +46,9 @@ Como posso ajudar você hoje?`,
    */
   PRIVACY: {
     DATA_DELETION: 'Você pode solicitar a exclusão dos seus dados digitando *"quero deletar meus dados"*.',
-    
+
     DATA_EXPORT: 'Para exportar suas conversas, digite *"exportar meus dados"*.',
-    
+
     POLICY_LINK: 'Nossa política de privacidade: [URL_DO_SISTEMA]/privacy-policy.html',
   },
 
@@ -57,9 +57,9 @@ Como posso ajudar você hoje?`,
    */
   HUMAN_HANDOFF: {
     INITIATED: '🤝 Transferindo você para um atendente humano...\n\n_Um momento, por favor._',
-    
+
     CONFIRMATION: '✅ Conectado com nossa equipe! A partir de agora, você está falando com uma pessoa real.',
-    
+
     UNAVAILABLE: '⏰ No momento nossa equipe está indisponível. Horário de atendimento: Segunda a Sexta, 9h às 18h.\n\nPosso ajudar com algo mais enquanto isso?',
   },
 
@@ -102,14 +102,14 @@ export function needsRecommendationDisclaimer(message: string): boolean {
  */
 export function autoAddDisclaimers(message: string): string {
   let result = message;
-  
+
   if (needsPriceDisclaimer(message)) {
     result = addDisclaimer(result, 'PRICE');
   }
-  
+
   if (needsRecommendationDisclaimer(message)) {
     result = addDisclaimer(result, 'RECOMMENDATION');
   }
-  
+
   return result;
 }

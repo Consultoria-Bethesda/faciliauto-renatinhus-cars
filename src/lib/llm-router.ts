@@ -284,10 +284,32 @@ export async function chatCompletion(
     }
   }
 
-  // Se todos falharam, usar mock como último recurso
-  logger.error('All LLM providers failed, using mock response');
-  const result = mockResponse(messages);
-  return result.content;
+  // Se todos falharam, lançar erro para tratamento adequado
+  logger.error('All LLM providers failed');
+  throw new LLMProvidersFailedError('Todos os provedores de LLM falharam. Por favor, tente novamente em alguns instantes.');
+}
+
+/**
+ * Error thrown when all LLM providers fail
+ * Requirements 7.1, 7.2: Fallback handling when LLM providers fail
+ */
+export class LLMProvidersFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LLMProvidersFailedError';
+  }
+}
+
+/**
+ * Get friendly error message when all LLM providers fail
+ * Requirements 7.2: Return friendly error message and offer human handoff
+ */
+export function getLLMFailureMessage(): string {
+  return `😔 Desculpe, estou com dificuldades técnicas no momento.
+
+Por favor, tente novamente em alguns instantes ou digite *vendedor* para falar com nossa equipe humana.
+
+Estamos aqui para ajudar! 🤝`;
 }
 
 /**

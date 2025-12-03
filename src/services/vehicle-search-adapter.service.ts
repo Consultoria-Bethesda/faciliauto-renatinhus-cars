@@ -12,6 +12,7 @@ import { logger } from '../lib/logger';
 interface SearchFilters {
   maxPrice?: number;
   minPrice?: number;
+  budget?: number;  // Budget with ±20% tolerance (Requirements 5.2)
   minYear?: number;
   maxKm?: number;
   bodyType?: string;
@@ -28,10 +29,23 @@ interface SearchFilters {
   aptoTrabalho?: boolean;
 }
 
+/**
+ * Apply ±20% budget tolerance (Requirements 5.2)
+ * Returns { minPrice, maxPrice } based on budget
+ */
+function applyBudgetTolerance(budget?: number): { minPrice?: number; maxPrice?: number } {
+  if (!budget) return {};
+  return {
+    minPrice: budget * 0.8,  // -20%
+    maxPrice: budget * 1.2,  // +20%
+  };
+}
+
 export class VehicleSearchAdapter {
   /**
    * Search vehicles using semantic search + filters
    * When brand is specified, does DIRECT database search (not semantic)
+   * Budget filter applies ±20% tolerance (Requirements 5.2)
    */
   async search(
     query: string,
@@ -40,11 +54,16 @@ export class VehicleSearchAdapter {
     try {
       const limit = filters.limit || 5;
 
+      // Apply ±20% budget tolerance if budget is specified (Requirements 5.2)
+      const budgetRange = applyBudgetTolerance(filters.budget);
+      const effectiveMinPrice = filters.minPrice ?? budgetRange.minPrice;
+      const effectiveMaxPrice = filters.maxPrice ?? budgetRange.maxPrice;
+
       // Se tem filtro de marca, modelo OU categoria específica, fazer busca DIRETA no banco
       // (não depender da busca semântica que pode não retornar o veículo)
       if (filters.brand || filters.model || filters.bodyType) {
         logger.info({ brand: filters.brand, model: filters.model, bodyType: filters.bodyType, query }, 'Direct database search for specific filter');
-        return this.searchDirectByFilters(filters);
+        return this.searchDirectByFilters({ ...filters, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice });
       }
 
       // Get vehicle IDs from semantic search
@@ -53,17 +72,17 @@ export class VehicleSearchAdapter {
       // Se busca semântica não retornou nada, fazer fallback para busca SQL
       if (vehicleIds.length === 0) {
         logger.info({ query, filters }, 'Semantic search returned empty, falling back to SQL');
-        return this.searchFallbackSQL(filters);
+        return this.searchFallbackSQL({ ...filters, minPrice: effectiveMinPrice, maxPrice: effectiveMaxPrice });
       }
 
-      // Fetch full vehicle data
+      // Fetch full vehicle data with ±20% budget tolerance
       const vehicles = await prisma.vehicle.findMany({
         where: {
           id: { in: vehicleIds },
           disponivel: true,
-          // Apply filters
-          ...(filters.maxPrice && { preco: { lte: filters.maxPrice } }),
-          ...(filters.minPrice && { preco: { gte: filters.minPrice } }),
+          // Apply filters with budget tolerance
+          ...(effectiveMaxPrice && { preco: { lte: effectiveMaxPrice } }),
+          ...(effectiveMinPrice && { preco: { gte: effectiveMinPrice } }),
           ...(filters.minYear && { ano: { gte: filters.minYear } }),
           ...(filters.maxKm && { km: { lte: filters.maxKm } }),
           ...(filters.bodyType && { carroceria: { equals: filters.bodyType, mode: 'insensitive' } }),
@@ -94,12 +113,12 @@ export class VehicleSearchAdapter {
             carroceria: { equals: filters.bodyType, mode: 'insensitive' },
           },
         });
-        
+
         if (existsInStock === 0) {
           logger.info({ bodyType: filters.bodyType }, 'Body type not available in stock');
           return []; // Retorna vazio para trigger "não temos X no estoque"
         }
-        
+
         // Se existe no estoque mas não veio da busca semântica, fazer fallback SQL
         return this.searchFallbackSQL(filters);
       }
@@ -168,12 +187,12 @@ export class VehicleSearchAdapter {
       ],
     });
 
-    logger.info({ 
-      brand: filters.brand, 
-      model: filters.model, 
+    logger.info({
+      brand: filters.brand,
+      model: filters.model,
       bodyType: filters.bodyType,
       bodyTypeVariations,
-      found: vehicles.length 
+      found: vehicles.length
     }, 'Direct filter search results');
 
     return this.formatVehicleResults(vehicles);
@@ -185,37 +204,37 @@ export class VehicleSearchAdapter {
    */
   private getBodyTypeVariations(bodyType?: string): string[] {
     if (!bodyType) return [];
-    
+
     const bt = bodyType.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // Remove acentos
-    
+
     // Mapeamento completo de variações (inclui termos em PT e EN)
     const variationGroups: string[][] = [
       // Pickups / Caminhonetes
       ['pickup', 'picape', 'pick-up', 'caminhonete', 'camionete', 'cabine', 'truck'],
-      
+
       // SUVs / Utilitários
       ['suv', 'utilitario', 'crossover', 'jipe', 'jeep', '4x4', 'off-road', 'offroad'],
-      
+
       // Sedans
       ['sedan', 'seda', 'sedã', 'notchback', 'fastback'],
-      
+
       // Hatches / Compactos
       ['hatch', 'hatchback', 'compacto', 'compact'],
-      
+
       // Minivans / Monovolumes
       ['minivan', 'mini-van', 'monovolume', 'mpv', 'van', 'perua', 'wagon', 'station'],
-      
+
       // Cupês / Esportivos
       ['coupe', 'cupe', 'cupê', 'esportivo', 'sport', 'roadster', 'conversivel', 'cabriolet'],
     ];
-    
+
     // Encontrar o grupo que contém a variação buscada
     for (const group of variationGroups) {
       if (group.some(v => bt.includes(v) || v.includes(bt))) {
         return group;
       }
     }
-    
+
     // Se não encontrou grupo, retorna o termo original + algumas variações comuns
     return [bodyType, bt];
   }

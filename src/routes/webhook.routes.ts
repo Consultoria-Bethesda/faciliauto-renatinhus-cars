@@ -5,6 +5,15 @@ import WhatsAppMetaService from '../services/whatsapp-meta.service';
 const router = Router();
 const whatsappMeta = new WhatsAppMetaService();
 
+// Store raw body for signature validation
+declare global {
+  namespace Express {
+    interface Request {
+      rawBody?: string;
+    }
+  }
+}
+
 /**
  * GET /webhooks/whatsapp
  * Webhook verification (called by Meta)
@@ -48,11 +57,23 @@ router.get('/whatsapp', (req: Request, res: Response) => {
 router.post('/whatsapp', async (req: Request, res: Response) => {
   try {
     const body = req.body;
+    const signature = req.headers['x-hub-signature-256'] as string | undefined;
+
+    // Get raw body for signature validation
+    // Note: rawBody must be captured by middleware before JSON parsing
+    const rawBody = req.rawBody || JSON.stringify(body);
 
     logger.debug('📩 Webhook received', {
       object: body.object,
       entries: body.entry?.length || 0,
+      hasSignature: !!signature,
     });
+
+    // Validate webhook signature (HMAC-SHA256)
+    if (!whatsappMeta.validateWebhookSignature(signature, rawBody)) {
+      logger.warn('❌ Webhook rejected - invalid signature');
+      return res.status(401).send('Invalid signature');
+    }
 
     // Respond immediately (Meta requires response within 20s)
     res.status(200).send('EVENT_RECEIVED');

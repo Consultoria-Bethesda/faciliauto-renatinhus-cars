@@ -4,7 +4,7 @@ import { renatinhuVehicles } from './scrape-renatinhu';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database with Renatinhu Cars vehicles...');
+  console.log("🌱 Seeding database with Renatinhu's Cars vehicles...");
 
   // Clear existing data
   await prisma.message.deleteMany();

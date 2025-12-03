@@ -6,6 +6,10 @@ import {
   EMBEDDING_MODEL,
 } from '../lib/embeddings';
 import { logger } from '../lib/logger';
+import {
+  generateVehicleEmbeddingText,
+  syncAllVehicleEmbeddings,
+} from '../services/vehicle-embedding.service';
 
 const prisma = new PrismaClient();
 
@@ -17,38 +21,12 @@ interface GenerateEmbeddingsOptions {
 
 /**
  * Gera texto descritivo para o veículo (usado para criar embedding)
+ * 
+ * @deprecated Use generateVehicleEmbeddingText from vehicle-embedding.service.ts
  */
 function buildVehicleDescription(vehicle: any): string {
-  const parts = [
-    vehicle.marca,
-    vehicle.modelo,
-    vehicle.versao || '',
-    `${vehicle.ano}`,
-    vehicle.carroceria,
-    vehicle.combustivel,
-    vehicle.cambio,
-  ];
-
-  const features: string[] = [];
-  if (vehicle.arCondicionado) features.push('ar condicionado');
-  if (vehicle.direcaoHidraulica) features.push('direção hidráulica');
-  if (vehicle.airbag) features.push('airbag');
-  if (vehicle.abs) features.push('ABS');
-  if (vehicle.vidroEletrico) features.push('vidro elétrico');
-  if (vehicle.travaEletrica) features.push('trava elétrica');
-  if (vehicle.alarme) features.push('alarme');
-  if (vehicle.rodaLigaLeve) features.push('roda de liga leve');
-  if (vehicle.som) features.push('som');
-
-  if (features.length > 0) {
-    parts.push(`Equipamentos: ${features.join(', ')}`);
-  }
-
-  if (vehicle.descricao) {
-    parts.push(vehicle.descricao);
-  }
-
-  return parts.filter((p) => p).join(' ');
+  // Usar a nova função do serviço de embedding
+  return generateVehicleEmbeddingText(vehicle);
 }
 
 /**
@@ -70,8 +48,8 @@ async function generateAllEmbeddings(
     const whereClause = forceRegenerate
       ? {}
       : {
-          OR: [{ embedding: null }, { embedding: '' }],
-        };
+        OR: [{ embedding: null }, { embedding: '' }],
+      };
 
     const vehicles = await prisma.vehicle.findMany({
       where: whereClause,

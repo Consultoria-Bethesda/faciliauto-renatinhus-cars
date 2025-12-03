@@ -66,6 +66,7 @@ model Vehicle {
   
   // Relations
   recommendations Recommendation[]
+  leads           Lead[]
 }
 
 // Conversas no WhatsApp
@@ -91,7 +92,7 @@ model Conversation {
   events          Event[]
   messages        Message[]
   recommendations Recommendation[]
-  lead            Lead?
+  leads           Lead[]
 }
 
 // Eventos/Actions na conversa
@@ -132,51 +133,47 @@ model Recommendation {
   @@index([matchScore])
 }
 
-// Leads qualificados
+// Leads qualificados para encaminhamento ao vendedor
 model Lead {
-  id              String   @id @default(uuid())
-  conversationId  String   @unique
+  id                  String   @id @default(uuid())
   
   // Dados do cliente
-  name            String
-  phone           String
-  email           String?
+  customerName        String
+  customerPhone       String
   
-  // Perfil
-  budget          Float?
-  usage           String?  // urbano, viagem, trabalho
-  people          Int?
-  hasTradeIn      Boolean  @default(false)
-  tradeInInfo     String?
+  // Veículo de interesse
+  vehicleId           String
+  vehicleMarca        String
+  vehicleModelo       String
+  vehicleAno          Int
+  vehiclePreco        Float
+  vehicleUrl          String?
   
-  // Interesse
-  interestedVehicles String? // JSON array de vehicle IDs
-  urgency         String?  // urgente, 1mes, 3meses, pesquisando
+  // Contexto da conversa
+  conversationId      String?
+  conversationSummary String?
+  customerPreferences String?  // JSON string of CustomerProfile
   
-  // Status
-  status          String   @default("new") // new, contacted, visited, sold, lost
+  // Status do lead: pending, sent, failed, contacted
+  status              String   @default("pending")
+  sentAt              DateTime?
+  contactedAt         DateTime?
   
-  // Atribuição
-  source          String   @default("whatsapp_bot")
-  
-  // Venda
-  soldAt          DateTime?
-  soldVehicleId   String?
-  saleValue       Float?
+  // Número do vendedor que recebeu o lead
+  sellerPhone         String
   
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  capturedAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
   
-  // CRM
-  crmSynced       Boolean  @default(false)
-  crmId           String?
+  // Relations
+  vehicle             Vehicle      @relation(fields: [vehicleId], references: [id])
+  conversation        Conversation? @relation(fields: [conversationId], references: [id])
   
-  conversation    Conversation @relation(fields: [conversationId], references: [id])
-  
-  @@index([phone])
+  @@index([customerPhone])
   @@index([status])
-  @@index([createdAt])
+  @@index([capturedAt])
+  @@index([vehicleId])
 }
 
 // Mensagens (log opcional)

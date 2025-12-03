@@ -38,25 +38,26 @@ export class RecommendationAgent {
       });
 
       if (vehicles.length === 0) {
-        logger.warn('No vehicles available for recommendation');
+        // Requirements 7.3: Log warning when no vehicles available
+        logger.warn({ conversationId }, 'No vehicles available for recommendation');
         return [];
       }
 
       // 1. Verificar se o usuário pediu um modelo específico
       const specificModelResult = await this.handleSpecificModelRequest(vehicles, answers);
-      
+
       if (specificModelResult.requestedModel) {
-        logger.info({ 
+        logger.info({
           requestedModel: specificModelResult.requestedModel,
           found: specificModelResult.found,
           exactMatches: specificModelResult.exactMatches.length,
         }, 'Specific model requested');
 
-        // Se encontrou o modelo exato, retornar com prioridade
+        // Se encontrou o modelo exato, retornar com prioridade (top 5)
         if (specificModelResult.found && specificModelResult.exactMatches.length > 0) {
-          const matches = specificModelResult.exactMatches.slice(0, 3).map((vehicle, index) => ({
+          const matches = specificModelResult.exactMatches.slice(0, 5).map((vehicle, index) => ({
             vehicle,
-            matchScore: 100 - index * 5, // 100, 95, 90 para os primeiros
+            matchScore: 100 - index * 2, // 100, 98, 96, 94, 92 para os primeiros
             reasoning: `✅ ${vehicle.marca} ${vehicle.modelo} - Exatamente o que você procura!`,
           }));
 
@@ -73,20 +74,27 @@ export class RecommendationAgent {
 
       // 2. Fluxo normal: pré-filtrar e avaliar com LLM
       const filteredVehicles = this.preFilterVehicles(vehicles, answers);
-      
+
       if (filteredVehicles.length === 0) {
-        logger.warn('No vehicles passed pre-filter');
+        // Requirements 7.3: Log warning with context when no vehicles pass filter
+        logger.warn({
+          conversationId,
+          budget: answers.budget,
+          minYear: answers.minYear,
+          maxKm: answers.maxKm,
+          totalVehicles: vehicles.length,
+        }, 'No vehicles passed pre-filter - criteria may be too restrictive');
         return [];
       }
 
       // Usar LLM para avaliar adequação ao contexto do usuário
       const evaluatedVehicles = await this.evaluateVehiclesWithLLM(filteredVehicles, answers);
 
-      // Filtrar apenas veículos adequados e ordenar por score
+      // Filtrar apenas veículos adequados e ordenar por score (top 5)
       const matches: VehicleMatch[] = evaluatedVehicles
         .filter(ev => ev.isAdequate && ev.score >= 50)
         .sort((a, b) => b.score - a.score)
-        .slice(0, 3)
+        .slice(0, 5)
         .map(ev => {
           const vehicle = filteredVehicles.find(v => v.id === ev.vehicleId);
           return {
@@ -132,11 +140,22 @@ export class RecommendationAgent {
       },
     });
 
+    // Requirements 10.3: Log match scores and reasoning for recommendations
     logger.info({
       conversationId,
       recommendationsCount: matches.length,
       topScore: matches[0]?.matchScore,
-    }, 'Recommendations saved');
+      recommendations: matches.map((m, i) => ({
+        position: i + 1,
+        vehicleId: m.vehicle.id,
+        brand: m.vehicle.marca,
+        model: m.vehicle.modelo,
+        year: m.vehicle.ano,
+        price: m.vehicle.preco,
+        matchScore: m.matchScore,
+        reasoning: m.reasoning,
+      })),
+    }, '🎯 Recommendations saved with match scores and reasoning');
   }
 
   /**
@@ -148,7 +167,7 @@ export class RecommendationAgent {
   ): Promise<SpecificModelResult> {
     // Detectar modelo específico mencionado pelo usuário
     const requestedModel = await this.detectSpecificModel(answers);
-    
+
     if (!requestedModel) {
       return {
         found: false,
@@ -161,7 +180,7 @@ export class RecommendationAgent {
 
     // Buscar modelo exato no estoque
     const exactMatches = this.findExactModelMatches(vehicles, requestedModel, answers);
-    
+
     if (exactMatches.length > 0) {
       return {
         found: true,
@@ -174,7 +193,7 @@ export class RecommendationAgent {
 
     // Não encontrou - buscar sugestões similares via LLM
     const similarSuggestions = await this.findSimilarModels(vehicles, requestedModel, answers);
-    
+
     return {
       found: false,
       requestedModel,
@@ -233,7 +252,7 @@ Exemplos:
       });
 
       const detected = response.trim();
-      
+
       if (detected === 'NENHUM' || detected.length < 2) {
         return null;
       }
@@ -262,9 +281,9 @@ Exemplos:
     return vehicles.filter(v => {
       // Verificar se modelo ou marca contém o termo buscado
       const matchesModel = v.modelo.toLowerCase().includes(modelLower) ||
-                          v.marca.toLowerCase().includes(modelLower) ||
-                          `${v.marca} ${v.modelo}`.toLowerCase().includes(modelLower);
-      
+        v.marca.toLowerCase().includes(modelLower) ||
+        `${v.marca} ${v.modelo}`.toLowerCase().includes(modelLower);
+
       if (!matchesModel) return false;
 
       // Aplicar filtros de orçamento/ano/km (com tolerância de 20% no orçamento)
@@ -296,7 +315,7 @@ Exemplos:
   ): Promise<VehicleMatch[]> {
     // Pré-filtrar veículos por critérios básicos
     const filteredVehicles = this.preFilterVehicles(vehicles, answers);
-    
+
     if (filteredVehicles.length === 0) {
       return [];
     }
@@ -335,7 +354,7 @@ IMPORTANTE: No reasoning, SEMPRE mencione que não temos o modelo pedido e expli
 VEÍCULOS DISPONÍVEIS:
 ${vehiclesList.map((v, i) => `${i + 1}. [${v.id}] ${v.descricao}`).join('\n')}
 
-Sugira as 3 melhores alternativas similares.`
+Sugira as 5 melhores alternativas similares.`
       }
     ];
 
@@ -351,13 +370,13 @@ Sugira as 3 melhores alternativas similares.`
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
-      
+
       if (!parsed.suggestions || !Array.isArray(parsed.suggestions)) {
         return this.fallbackSimilarSuggestions(filteredVehicles, requestedModel);
       }
 
       return parsed.suggestions
-        .slice(0, 3)
+        .slice(0, 5)
         .map((s: any) => {
           const vehicle = filteredVehicles.find(v => v.id === s.vehicleId);
           return {
@@ -374,7 +393,7 @@ Sugira as 3 melhores alternativas similares.`
   }
 
   /**
-   * Fallback para sugestões similares
+   * Fallback para sugestões similares (top 5)
    */
   private fallbackSimilarSuggestions(vehicles: any[], requestedModel: string): VehicleMatch[] {
     // Ordenar por preço (desc), km (asc), ano (desc)
@@ -386,25 +405,30 @@ Sugira as 3 melhores alternativas similares.`
       return a.km - b.km;
     });
 
-    return sortedVehicles.slice(0, 3).map((vehicle, index) => ({
+    return sortedVehicles.slice(0, 5).map((vehicle, index) => ({
       vehicle,
-      matchScore: 70 - index * 5,
+      matchScore: 70 - index * 2,
       reasoning: `⚠️ Não temos ${capitalize(requestedModel)} disponível. ${vehicle.marca} ${vehicle.modelo} pode ser uma alternativa.`,
     }));
   }
 
   /**
-   * Pré-filtra veículos por critérios objetivos (orçamento, ano, km)
+   * Pré-filtra veículos por critérios objetivos (orçamento ±20%, ano, km)
+   * Requirements 5.2: Budget filter applies ±20% tolerance
    */
   private preFilterVehicles(vehicles: any[], answers: Record<string, any>): any[] {
     const budget = answers.budget || Infinity;
     const minYear = answers.minYear || 1990;
     const maxKm = answers.maxKm || 500000;
 
+    // Apply ±20% budget tolerance (Requirements 5.2)
+    const budgetMin = budget === Infinity ? 0 : budget * 0.8;
+    const budgetMax = budget === Infinity ? Infinity : budget * 1.2;
+
     return vehicles.filter(vehicle => {
       const preco = parseFloat(vehicle.preco);
-      // Permitir 10% acima do orçamento para dar opções
-      if (preco > budget * 1.1) return false;
+      // Apply ±20% budget tolerance
+      if (preco < budgetMin || preco > budgetMax) return false;
       if (vehicle.ano < minYear) return false;
       if (vehicle.km > maxKm) return false;
       return true;
@@ -427,7 +451,7 @@ Sugira as 3 melhores alternativas similares.`
   ): Promise<LLMVehicleEvaluation[]> {
     // Construir descrição do perfil do usuário
     const userContext = this.buildUserContext(answers);
-    
+
     // Construir lista de veículos para avaliação
     const vehiclesList = vehicles.map(v => ({
       id: v.id,
@@ -488,14 +512,14 @@ Avalie cada veículo e retorne o JSON com as avaliações.`
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
-      
+
       if (!parsed.evaluations || !Array.isArray(parsed.evaluations)) {
         logger.error('LLM response missing evaluations array');
         return this.fallbackEvaluation(vehicles, answers);
       }
 
       logger.info({ evaluationsCount: parsed.evaluations.length }, 'LLM evaluations received');
-      
+
       return parsed.evaluations;
     } catch (error) {
       logger.error({ error }, 'Error in LLM vehicle evaluation');

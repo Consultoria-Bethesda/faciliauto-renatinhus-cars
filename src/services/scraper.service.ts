@@ -1,5 +1,5 @@
 /**
- * Scraper Service for Renatinhus Cars
+ * Scraper Service for Renatinhu's Cars
  * 
  * Extracts vehicle data from https://www.renatinhuscars.com.br/
  * 
@@ -10,7 +10,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { logger } from '../lib/logger';
 
-// Base URL for Renatinhus Cars website
+// Base URL for Renatinhu's Cars website
 const BASE_URL = 'https://www.renatinhuscars.com.br';
 
 /**

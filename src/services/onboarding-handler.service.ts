@@ -135,7 +135,7 @@ Me conta: o que você está procurando?`;
     }
 
     // Standard greeting (no name provided)
-    const response = `Olá! 😊 Bem-vindo à *FaciliAuto*!
+    const response = `Olá! 😊 Bem-vindo à *Renatinhu's Cars*!
 
 Sou especialista em veículos usados e vou te ajudar a encontrar o carro ideal.
 
@@ -184,21 +184,21 @@ Me conta: o que você está procurando?`;
   ): Promise<{ response: string; updatedProfile: Partial<CustomerProfile> }> {
     // First, check if user mentioned a specific brand or model
     const brandModel = await this.extractBrandModel(message);
-    
+
     if (brandModel.brand || brandModel.model) {
       logger.info({ brand: brandModel.brand, model: brandModel.model }, 'User mentioned specific brand/model in context discovery');
-      
+
       // Return with brand/model to let vehicle expert handle the search
       return {
         response: '', // Empty response signals to pass to vehicle expert
-        updatedProfile: { 
+        updatedProfile: {
           brand: brandModel.brand || undefined,
           model: brandModel.model || undefined,
           _skipOnboarding: true // Flag to skip rest of onboarding
         }
       };
     }
-    
+
     // Extract context using LLM
     const context = await this.extractContext(message);
 

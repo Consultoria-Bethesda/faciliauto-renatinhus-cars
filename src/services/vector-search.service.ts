@@ -1,12 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma, isDatabaseError, logDatabaseError } from '../lib/prisma';
 import {
   generateEmbedding,
   stringToEmbedding,
   searchSimilar,
 } from '../lib/embeddings';
 import { logger } from '../lib/logger';
-
-const prisma = new PrismaClient();
 
 export interface VehicleSearchCriteria {
   budget?: number;
@@ -32,6 +30,7 @@ export interface ScoredVehicle {
   color: string;
   features: string[];
   photos?: string[];
+  url?: string;  // URL to "MAIS DETALHES" page (Requirements 5.5)
   matchScore: number;
   matchReasons: string[];
 }
@@ -55,7 +54,12 @@ export class VectorSearchService {
         return this.sqlSearch(criteria, limit);
       }
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Erro na busca de veículos');
+      // Requirements 7.4, 7.5: Log database errors with full context
+      if (isDatabaseError(error)) {
+        logDatabaseError(error, 'searchVehicles', { criteria, limit });
+      } else {
+        logger.error({ error: error.message }, 'Erro na busca de veículos');
+      }
       return this.sqlSearch(criteria, limit);
     }
   }
@@ -114,10 +118,10 @@ export class VectorSearchService {
           vehicle: v,
         }))
         .filter((v) => v.embedding !== null) as Array<{
-        id: string;
-        embedding: number[];
-        vehicle: any;
-      }>;
+          id: string;
+          embedding: number[];
+          vehicle: any;
+        }>;
 
       if (vehiclesWithEmbeddings.length === 0) {
         logger.warn('Nenhum embedding válido encontrado');
@@ -168,6 +172,7 @@ export class VectorSearchService {
           color: vehicle.cor,
           features: this.extractFeatures(vehicle),
           photos: vehicle.fotosUrls ? JSON.parse(vehicle.fotosUrls) : [],
+          url: vehicle.url || undefined,  // URL to "MAIS DETALHES" page (Requirements 5.5)
           matchScore: Math.round(finalScore * 100),
           matchReasons,
           _semanticScore: Math.round(semanticScore * 100),
@@ -243,6 +248,7 @@ export class VectorSearchService {
           color: vehicle.cor,
           features: this.extractFeatures(vehicle),
           photos: vehicle.fotosUrls ? JSON.parse(vehicle.fotosUrls) : [],
+          url: vehicle.url || undefined,  // URL to "MAIS DETALHES" page (Requirements 5.5)
           matchScore: Math.round(criteriaScore * 100),
           matchReasons,
         };
@@ -258,7 +264,12 @@ export class VectorSearchService {
 
       return scoredVehicles.slice(0, limit);
     } catch (error: any) {
-      logger.error({ error: error.message }, 'Erro na busca SQL');
+      // Requirements 7.4, 7.5: Log database errors with full context
+      if (isDatabaseError(error)) {
+        logDatabaseError(error, 'sqlSearch', { criteria, limit });
+      } else {
+        logger.error({ error: error.message }, 'Erro na busca SQL');
+      }
       return [];
     }
   }

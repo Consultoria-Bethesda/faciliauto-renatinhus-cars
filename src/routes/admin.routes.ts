@@ -476,7 +476,7 @@ router.post('/validate-urls', requireSecret, async (req, res) => {
     logger.info('🔍 Admin: Validando URLs dos veículos...');
 
     const vehicles = await prisma.vehicle.findMany({
-      where: { 
+      where: {
         disponivel: true,
         url: { not: null }
       },
@@ -519,7 +519,7 @@ router.post('/validate-urls', requireSecret, async (req, res) => {
               return;
             }
 
-            const isInvalid = 
+            const isInvalid =
               html.includes('página não encontrada') ||
               html.includes('veículo não disponível') ||
               html.includes('anúncio não encontrado') ||
@@ -535,12 +535,12 @@ router.post('/validate-urls', requireSecret, async (req, res) => {
             resolve({ valid: true });
           });
         })
-        .on('error', (err: Error) => {
-          resolve({ valid: false, reason: err.message });
-        })
-        .on('timeout', () => {
-          resolve({ valid: false, reason: 'Timeout' });
-        });
+          .on('error', (err: Error) => {
+            resolve({ valid: false, reason: err.message });
+          })
+          .on('timeout', () => {
+            resolve({ valid: false, reason: 'Timeout' });
+          });
       });
     };
 
@@ -548,7 +548,7 @@ router.post('/validate-urls', requireSecret, async (req, res) => {
     const batchSize = 5;
     for (let i = 0; i < vehicles.length; i += batchSize) {
       const batch = vehicles.slice(i, i + batchSize);
-      
+
       const results = await Promise.all(
         batch.map(async (vehicle) => {
           const result = await checkUrl(vehicle.url || '');
@@ -619,7 +619,7 @@ router.post('/validate-urls', requireSecret, async (req, res) => {
 router.post('/scrape-robustcar', requireSecret, async (req, res) => {
   try {
     const useLLM = req.query.useLLM === 'true' || req.body.useLLM === true;
-    
+
     logger.info({ useLLM }, '🚀 Admin: Iniciando scraping da RobustCar...');
 
     const https = await import('https');
@@ -660,7 +660,7 @@ router.post('/scrape-robustcar', requireSecret, async (req, res) => {
     // Função para fazer requisição HTTPS
     const fetchPage = (url: string): Promise<string> => {
       return new Promise((resolve, reject) => {
-        https.get(url, { 
+        https.get(url, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
           timeout: 15000
         }, (res: any) => {
@@ -688,13 +688,13 @@ router.post('/scrape-robustcar', requireSecret, async (req, res) => {
           const listItems = block.match(/<li>([^<]+)<\/li>/g) || [];
           const listData = listItems.map(li => li.replace(/<\/?li>/g, '').trim());
           const priceMatch = block.match(/class="preco"[^>]*>([^<]+)/);
-          
+
           const mvParts = modelVersion.trim().split(/\s+/);
           const model = mvParts[0];
           const version = mvParts.slice(1).join(' ');
 
-          const price = priceMatch ? 
-            parseFloat(priceMatch[1].replace(/R\$|\./g, '').replace(',', '.').trim()) || null 
+          const price = priceMatch ?
+            parseFloat(priceMatch[1].replace(/R\$|\./g, '').replace(',', '.').trim()) || null
             : null;
 
           vehicles.push({
@@ -756,7 +756,7 @@ router.post('/scrape-robustcar', requireSecret, async (req, res) => {
               combustivel: vehicle.fuel
             });
             llmClassified++;
-            logger.info({ 
+            logger.info({
               vehicle: `${vehicle.brand} ${vehicle.model}`,
               category: classification.category,
               confidence: classification.confidence
@@ -852,7 +852,7 @@ router.post('/refresh-inventory', requireSecret, async (req, res) => {
 
     // 1. Validar URLs existentes
     logger.info('🔍 Passo 1/2: Validando URLs existentes...');
-    
+
     const vehiclesToValidate = await prisma.vehicle.findMany({
       where: { disponivel: true, url: { not: null } },
       select: { id: true, url: true }
@@ -863,7 +863,7 @@ router.post('/refresh-inventory', requireSecret, async (req, res) => {
 
     const checkUrlQuick = (url: string): Promise<boolean> => {
       return new Promise((resolve) => {
-        https.get(url, { 
+        https.get(url, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           timeout: 5000
         }, (res: any) => {
@@ -899,7 +899,7 @@ router.post('/refresh-inventory', requireSecret, async (req, res) => {
 
     // 2. Scraping básico (primeiras 3 páginas para rapidez)
     logger.info('🚀 Passo 2/2: Scraping rápido...');
-    
+
     const baseUrl = 'https://robustcar.com.br';
     const fetchPage = (url: string): Promise<string> => {
       return new Promise((resolve, reject) => {
@@ -916,7 +916,7 @@ router.post('/refresh-inventory', requireSecret, async (req, res) => {
       try {
         const html = await fetchPage(`${baseUrl}/busca//pag/${page}/ordem/ano-desc/`);
         const urlMatches = html.matchAll(/href="(\/carros\/[^"]+)"/g);
-        
+
         for (const match of urlMatches) {
           const url = `${baseUrl}${match[1]}`;
           const exists = await prisma.vehicle.findFirst({ where: { url } });
@@ -939,7 +939,7 @@ router.post('/refresh-inventory', requireSecret, async (req, res) => {
         potentialNewVehicles: newVehicles,
         totalAvailable: finalCount
       },
-      note: newVehicles > 0 
+      note: newVehicles > 0
         ? `Encontrados ${newVehicles} novos veículos. Execute /admin/scrape-robustcar para importá-los.`
         : 'Inventário atualizado, sem novos veículos.'
     });
@@ -963,7 +963,7 @@ router.get('/debug-vehicles', requireSecret, async (req, res) => {
     // Total de veículos
     const total = await prisma.vehicle.count();
     const available = await prisma.vehicle.count({ where: { disponivel: true } });
-    
+
     // Agrupar por carroceria
     const byBodyType = await prisma.vehicle.groupBy({
       by: ['carroceria'],
@@ -971,7 +971,7 @@ router.get('/debug-vehicles', requireSecret, async (req, res) => {
       where: { disponivel: true },
       orderBy: { _count: { carroceria: 'desc' } }
     });
-    
+
     // Buscar pickups especificamente (case insensitive não funciona no groupBy)
     const pickups = await prisma.vehicle.findMany({
       where: {
@@ -995,14 +995,14 @@ router.get('/debug-vehicles', requireSecret, async (req, res) => {
         preco: true
       }
     });
-    
+
     // Listar todos os valores únicos de carroceria
     const allBodyTypes = await prisma.vehicle.findMany({
       where: { disponivel: true },
       select: { carroceria: true },
       distinct: ['carroceria']
     });
-    
+
     res.json({
       success: true,
       summary: {
@@ -1020,7 +1020,7 @@ router.get('/debug-vehicles', requireSecret, async (req, res) => {
         preco: p.preco
       }))
     });
-    
+
   } catch (error: any) {
     logger.error({ error }, '❌ Admin: Debug vehicles failed');
     res.status(500).json({
@@ -1091,6 +1091,188 @@ router.get('/debug-env', async (req, res) => {
     res.status(500).json({
       error: error.message,
       stack: error.stack
+    });
+  }
+});
+
+/**
+ * GET /admin/seed-renatinhu
+ * Seed database with Renatinhu's Cars vehicles and generate embeddings
+ * 
+ * Task: 14. Executar Seed Inicial
+ * Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2
+ */
+router.get('/seed-renatinhu', async (req, res) => {
+  const { secret } = req.query;
+
+  // Validação de autenticação
+  if (secret !== SEED_SECRET) {
+    logger.warn('Tentativa de acesso não autorizado ao endpoint de seed renatinhu');
+    return res.status(403).json({
+      success: false,
+      error: 'Unauthorized - Invalid secret'
+    });
+  }
+
+  try {
+    logger.info('🚀 Seed Renatinhu\'s Cars iniciado via HTTP endpoint');
+
+    // Import dependencies
+    const { renatinhuVehicles } = await import('../scripts/scrape-renatinhu');
+    const { vehicleSyncService } = await import('../services/vehicle-sync.service');
+    const { generateEmbedding, embeddingToString, EMBEDDING_MODEL } = await import('../lib/embeddings');
+    const { generateVehicleEmbeddingText } = await import('../services/vehicle-embedding.service');
+
+    // Convert static data to ScrapedVehicle format
+    const scrapedVehicles = renatinhuVehicles.map((v, i) => ({
+      marca: v.marca,
+      modelo: v.modelo,
+      versao: v.versao,
+      ano: v.ano,
+      km: v.km,
+      preco: v.preco,
+      cor: v.cor,
+      combustivel: v.combustivel,
+      cambio: v.cambio,
+      carroceria: v.carroceria,
+      fotoUrl: v.fotoUrl,
+      fotosUrls: v.fotoUrl ? [v.fotoUrl] : [],
+      url: `https://www.renatinhuscars.com.br/veiculo/${i + 1}`,
+      descricao: v.descricao,
+    }));
+
+    logger.info(`📦 Carregados ${scrapedVehicles.length} veículos dos dados estáticos`);
+
+    // Task 14.2: Clear and sync with database
+    logger.info('🗑️ Limpando dados existentes...');
+    await prisma.message.deleteMany();
+    await prisma.recommendation.deleteMany();
+    await prisma.event.deleteMany();
+    await prisma.lead.deleteMany();
+    await prisma.conversation.deleteMany();
+    await prisma.vehicle.deleteMany();
+    logger.info('✅ Dados existentes removidos');
+
+    logger.info('📥 Sincronizando veículos...');
+    const syncResult = await vehicleSyncService.syncFromScraper(scrapedVehicles, {
+      markRemovedAsUnavailable: true,
+      verbose: false,
+    });
+
+    logger.info({
+      added: syncResult.added,
+      updated: syncResult.updated,
+      removed: syncResult.removed,
+      errors: syncResult.errors.length,
+    }, '✅ Sincronização concluída');
+
+    // Task 14.3: Generate embeddings
+    logger.info('🧠 Gerando embeddings...');
+
+    const vehicles = await prisma.vehicle.findMany({
+      where: { disponivel: true },
+    });
+
+    let embeddingsGenerated = 0;
+    let embeddingErrors = 0;
+
+    for (const vehicle of vehicles) {
+      try {
+        const text = generateVehicleEmbeddingText(vehicle);
+        const embedding = await generateEmbedding(text);
+
+        await prisma.vehicle.update({
+          where: { id: vehicle.id },
+          data: {
+            embedding: embeddingToString(embedding),
+            embeddingModel: EMBEDDING_MODEL,
+            embeddingGeneratedAt: new Date(),
+          },
+        });
+
+        embeddingsGenerated++;
+        logger.debug({ vehicle: `${vehicle.marca} ${vehicle.modelo}` }, 'Embedding gerado');
+
+        // Delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error: any) {
+        embeddingErrors++;
+        logger.error({ vehicleId: vehicle.id, error: error.message }, 'Erro ao gerar embedding');
+      }
+    }
+
+    // Final stats
+    const finalStats = {
+      totalVehicles: await prisma.vehicle.count(),
+      availableVehicles: await prisma.vehicle.count({ where: { disponivel: true } }),
+      withEmbeddings: await prisma.vehicle.count({ where: { embedding: { not: null } } }),
+    };
+
+    logger.info({ finalStats }, '✅ Seed Renatinhu\'s Cars concluído!');
+
+    res.json({
+      success: true,
+      message: '✅ Seed Renatinhu\'s Cars executado com sucesso!',
+      sync: {
+        added: syncResult.added,
+        updated: syncResult.updated,
+        removed: syncResult.removed,
+        errors: syncResult.errors.length,
+      },
+      embeddings: {
+        generated: embeddingsGenerated,
+        errors: embeddingErrors,
+      },
+      finalStats,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    logger.error({ error }, '❌ Erro ao executar seed Renatinhu');
+
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      help: 'Verifique: 1) DATABASE_URL configurado, 2) OPENAI_API_KEY configurado'
+    });
+  }
+});
+
+/**
+ * GET /admin/stats
+ * Get database statistics
+ */
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = {
+      vehicles: {
+        total: await prisma.vehicle.count(),
+        available: await prisma.vehicle.count({ where: { disponivel: true } }),
+        withEmbeddings: await prisma.vehicle.count({ where: { embedding: { not: null } } }),
+      },
+      conversations: await prisma.conversation.count(),
+      recommendations: await prisma.recommendation.count(),
+      leads: await prisma.lead.count(),
+    };
+
+    // Get vehicles by brand
+    const byBrand = await prisma.vehicle.groupBy({
+      by: ['marca'],
+      _count: { marca: true },
+      where: { disponivel: true },
+      orderBy: { _count: { marca: 'desc' } },
+    });
+
+    res.json({
+      success: true,
+      stats,
+      byBrand: byBrand.map(b => ({ marca: b.marca, count: b._count.marca })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

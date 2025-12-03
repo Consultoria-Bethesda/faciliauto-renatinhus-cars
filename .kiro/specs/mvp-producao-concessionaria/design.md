@@ -1,8 +1,8 @@
-# Design Document: MVP Produção Concessionária Renatinhus Cars
+# Design Document: MVP Produção Concessionária Renatinhu's Cars
 
 ## Overview
 
-Este documento descreve a arquitetura e design técnico para o MVP de produção do assistente de vendas via WhatsApp para a concessionária Renatinhus Cars. O sistema utiliza a infraestrutura existente do FaciliAuto, adaptando-a para operar com o estoque específico de 27 veículos da loja.
+Este documento descreve a arquitetura e design técnico para o MVP de produção do assistente de vendas via WhatsApp para a concessionária Renatinhu's Cars. O sistema utiliza a infraestrutura existente do FaciliAuto, adaptando-a para operar com o estoque específico de 27 veículos da loja.
 
 A solução combina:
 - **Web Scraping** para extração de dados do site da concessionária
@@ -40,7 +40,12 @@ A solução combina:
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  ┌──────────────────┐    │
 │  │ Greeting │→ │ Discovery│→ │ Clarification│→ │ Recommendation   │    │
 │  │   Node   │  │   Node   │  │     Node     │  │      Node        │    │
-│  └──────────┘  └──────────┘  └──────────────┘  └──────────────────┘    │
+│  └──────────┘  └──────────┘  └──────────────┘  └────────┬─────────┘    │
+│                                                          │              │
+│                                                 ┌────────▼─────────┐    │
+│                                                 │ Lead Forwarding  │    │
+│                                                 │      Node        │    │
+│                                                 └──────────────────┘    │
 └───────────┬─────────────────────────────────────────────────────────────┘
             │
 ┌───────────▼─────────────────────────────────────────────────────────────┐
@@ -77,7 +82,7 @@ A solução combina:
 
 ### 1. Web Scraper Component
 
-**Responsabilidade:** Extrair dados de veículos do site Renatinhus Cars
+**Responsabilidade:** Extrair dados de veículos do site Renatinhu's Cars
 
 ```typescript
 interface ScrapedVehicle {
@@ -202,6 +207,77 @@ interface WhatsAppMetaService {
 }
 ```
 
+### 7. Lead Forwarding Service
+
+**Responsabilidade:** Detectar interesse do cliente, capturar lead qualificado e encaminhar para o vendedor
+
+```typescript
+interface LeadData {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleId: string;
+  vehicle: {
+    marca: string;
+    modelo: string;
+    ano: number;
+    preco: number;
+    url: string;
+  };
+  conversationSummary: string;
+  customerPreferences: CustomerProfile;
+  capturedAt: Date;
+  status: 'pending' | 'sent' | 'failed' | 'contacted';
+}
+
+interface LeadForwardingService {
+  // Detecta se a mensagem expressa interesse em um veículo
+  detectInterest(message: string, context: ConversationState): InterestDetectionResult;
+  
+  // Captura os dados do lead
+  captureLead(
+    customerPhone: string,
+    customerName: string,
+    vehicle: Vehicle,
+    conversationState: ConversationState
+  ): Promise<LeadData>;
+  
+  // Formata a mensagem para o vendedor
+  formatLeadMessage(lead: LeadData): string;
+  
+  // Envia o lead para o vendedor com retry
+  sendToSeller(lead: LeadData, sellerPhone: string): Promise<SendResult>;
+  
+  // Persiste o lead no banco de dados
+  persistLead(lead: LeadData): Promise<void>;
+  
+  // Atualiza o status do lead
+  updateLeadStatus(leadId: string, status: LeadData['status']): Promise<void>;
+}
+
+interface InterestDetectionResult {
+  hasInterest: boolean;
+  vehicleIndex?: number;  // Qual veículo das recomendações (1-5)
+  intentType?: 'purchase' | 'visit' | 'info' | 'contact';
+  confidence: number;  // 0-1
+}
+
+// Padrões de interesse para detecção
+const INTEREST_PATTERNS = [
+  'quero esse',
+  'tenho interesse',
+  'quero agendar',
+  'quero visitar',
+  'quero ver esse',
+  'me interessei',
+  'gostei desse',
+  'pode me passar',
+  'quero mais informações',
+  'quero falar com vendedor',
+  'quero comprar',
+];
+```
+
 ## Data Models
 
 ### Vehicle Model (Prisma)
@@ -251,6 +327,47 @@ model Vehicle {
 }
 ```
 
+### Lead Model (Prisma)
+
+```prisma
+model Lead {
+  id                  String   @id @default(uuid())
+  
+  // Customer info
+  customerName        String
+  customerPhone       String
+  
+  // Vehicle of interest
+  vehicleId           String
+  vehicleMarca        String
+  vehicleModelo       String
+  vehicleAno          Int
+  vehiclePreco        Float
+  vehicleUrl          String?
+  
+  // Conversation context
+  conversationId      String?
+  conversationSummary String?
+  customerPreferences String?  // JSON string of CustomerProfile
+  
+  // Status tracking
+  status              String   @default("pending")  // pending, sent, failed, contacted
+  sentAt              DateTime?
+  contactedAt         DateTime?
+  
+  // Seller info
+  sellerPhone         String
+  
+  // Timestamps
+  capturedAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  vehicle             Vehicle  @relation(fields: [vehicleId], references: [id])
+  conversation        Conversation? @relation(fields: [conversationId], references: [id])
+}
+```
+
 ### Conversation State
 
 ```typescript
@@ -295,7 +412,7 @@ interface ConversationState {
 Based on the acceptance criteria analysis, the following correctness properties must be validated through property-based testing:
 
 ### Property 1: Scraper extracts all required vehicle fields
-*For any* valid HTML page from Renatinhus Cars containing vehicle listings, the scraper SHALL extract all required fields (marca, modelo, ano, km, preco, cor, combustivel, cambio) for each vehicle present.
+*For any* valid HTML page from Renatinhu's Cars containing vehicle listings, the scraper SHALL extract all required fields (marca, modelo, ano, km, preco, cor, combustivel, cambio) for each vehicle present.
 **Validates: Requirements 1.1, 1.4**
 
 ### Property 2: Scraper captures URL for each vehicle
@@ -374,6 +491,22 @@ Based on the acceptance criteria analysis, the following correctness properties 
 *For any* generated response, the output validator SHALL detect and block responses containing system prompt fragments or internal instructions.
 **Validates: Requirements 9.4**
 
+### Property 21: Interest detection identifies purchase intent
+*For any* message containing known interest patterns (e.g., "quero esse", "tenho interesse", "quero agendar visita"), the interest detector SHALL return hasInterest=true with confidence > 0.7.
+**Validates: Requirements 11.1**
+
+### Property 22: Lead capture includes all required fields
+*For any* captured lead, the lead data SHALL contain: customerName (non-empty), customerPhone (valid format), vehicle details (marca, modelo, ano, preco), and conversationSummary.
+**Validates: Requirements 11.2**
+
+### Property 23: Lead message formatting includes all required information
+*For any* lead data, the formatted seller message SHALL contain: customer name, customer phone (in clickable format), vehicle marca/modelo/ano/preco, customer preferences summary, and timestamp.
+**Validates: Requirements 11.4**
+
+### Property 24: Lead persistence saves with pending status
+*For any* newly captured lead, the persisted record SHALL have status="pending" and a valid capturedAt timestamp.
+**Validates: Requirements 11.7**
+
 ## Error Handling
 
 ### LLM Provider Failures
@@ -445,6 +578,45 @@ Quer que eu busque com critérios mais amplos? 🔍`,
 }
 ```
 
+### Lead Forwarding Failures
+
+```typescript
+// Retry logic for lead forwarding with exponential backoff
+const leadForwardingService = {
+  maxRetries: 3,
+  
+  async sendToSeller(lead: LeadData, sellerPhone: string): Promise<SendResult> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const message = this.formatLeadMessage(lead);
+        const result = await whatsappService.sendMessage(sellerPhone, message);
+        
+        // Update lead status to sent
+        await this.updateLeadStatus(lead.id, 'sent');
+        logger.info({ leadId: lead.id, attempt }, 'Lead sent to seller successfully');
+        
+        return result;
+      } catch (error) {
+        lastError = error as Error;
+        logger.warn({ leadId: lead.id, attempt, error }, 'Failed to send lead to seller');
+        
+        if (attempt < this.maxRetries) {
+          await sleep(Math.pow(2, attempt) * 1000); // Exponential backoff
+        }
+      }
+    }
+    
+    // All retries failed
+    await this.updateLeadStatus(lead.id, 'failed');
+    logger.error({ leadId: lead.id, error: lastError }, 'Lead forwarding failed after all retries');
+    
+    throw new Error(`Failed to send lead after ${this.maxRetries} attempts`);
+  }
+};
+```
+
 ## Testing Strategy
 
 ### Dual Testing Approach
@@ -473,7 +645,8 @@ tests/
 │   ├── scraper.test.ts           # Scraper unit tests
 │   ├── formatter.test.ts         # Message formatter tests
 │   ├── guardrails.test.ts        # Security guardrails tests
-│   └── sync.test.ts              # Vehicle sync tests
+│   ├── sync.test.ts              # Vehicle sync tests
+│   └── lead-forwarding.test.ts   # Lead forwarding unit tests
 ├── properties/
 │   ├── scraper.property.ts       # Properties 1-3
 │   ├── sync.property.ts          # Properties 4-5
@@ -482,7 +655,8 @@ tests/
 │   ├── recommendation.property.ts # Properties 11-12
 │   ├── formatter.property.ts     # Properties 13-15
 │   ├── webhook.property.ts       # Property 16
-│   └── guardrails.property.ts    # Properties 17-20
+│   ├── guardrails.property.ts    # Properties 17-20
+│   └── lead-forwarding.property.ts # Properties 21-24
 ├── integration/
 │   ├── llm-integration.test.ts   # LLM provider integration
 │   └── webhook.test.ts           # WhatsApp webhook integration
@@ -530,5 +704,34 @@ const maliciousInputArbitrary = fc.oneof(
   fc.constant('<script>alert(1)</script>'),
   fc.constant('{{constructor.constructor}}'),
   fc.stringOf(fc.constantFrom('\x00', '\x1f', '\x7f')), // Control chars
+);
+
+// Lead data generator for lead forwarding tests
+const leadDataArbitrary = fc.record({
+  id: fc.uuid(),
+  customerName: fc.string({ minLength: 2, maxLength: 50 }),
+  customerPhone: fc.stringMatching(/^55\d{10,11}$/),
+  vehicleId: fc.uuid(),
+  vehicle: fc.record({
+    marca: fc.constantFrom('Fiat', 'Volkswagen', 'Chevrolet', 'Honda', 'Toyota'),
+    modelo: fc.string({ minLength: 2, maxLength: 30 }),
+    ano: fc.integer({ min: 2010, max: 2025 }),
+    preco: fc.float({ min: 20000, max: 500000 }),
+    url: fc.webUrl(),
+  }),
+  conversationSummary: fc.string({ minLength: 10, maxLength: 500 }),
+  capturedAt: fc.date(),
+  status: fc.constant('pending'),
+});
+
+// Interest message generator
+const interestMessageArbitrary = fc.oneof(
+  fc.constant('quero esse'),
+  fc.constant('tenho interesse'),
+  fc.constant('quero agendar visita'),
+  fc.constant('me interessei pelo primeiro'),
+  fc.constant('gostei do segundo, quero ver'),
+  fc.constant('pode me passar o contato?'),
+  fc.constant('quero falar com vendedor'),
 );
 ```

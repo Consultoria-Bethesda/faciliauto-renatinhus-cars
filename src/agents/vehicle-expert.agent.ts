@@ -47,7 +47,7 @@ const isFiveSeater = (model: string): boolean => {
 
 export class VehicleExpertAgent {
 
-  private readonly SYSTEM_PROMPT = `Você é um especialista em vendas de veículos usados da FaciliAuto (loja Robust Car).
+  private readonly SYSTEM_PROMPT = `Você é um especialista em vendas de veículos usados da Renatinhu's Cars.
 
 📊 CONHECIMENTO DA BASE:
 - ~70 veículos disponíveis (estoque real)
@@ -177,18 +177,18 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
       if (wasWaitingForSuggestionResponse) {
         // First, check if user is asking a NEW question or making a new request
         const isNewQuestion = this.detectUserQuestion(userMessage);
-        const hasNewPreferences = Object.keys(extracted.extracted).length > 0 && 
+        const hasNewPreferences = Object.keys(extracted.extracted).length > 0 &&
           (extracted.extracted.bodyType || extracted.extracted.brand || extracted.extracted.model || extracted.extracted.budget);
-        
+
         // If user is asking a question or has new preferences, process normally (don't treat as yes/no)
         if (isNewQuestion || hasNewPreferences) {
-          logger.info({ 
-            userMessage, 
-            isNewQuestion, 
+          logger.info({
+            userMessage,
+            isNewQuestion,
             hasNewPreferences,
-            extracted: extracted.extracted 
+            extracted: extracted.extracted
           }, 'User asked new question while waiting for suggestion response, processing normally');
-          
+
           // Clear the waiting flag and continue to normal processing
           updatedProfile._waitingForSuggestionResponse = false;
           updatedProfile._searchedItem = undefined;
@@ -196,25 +196,25 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         } else {
           const userAccepts = this.detectAffirmativeResponse(userMessage);
           const userDeclines = this.detectNegativeResponse(userMessage);
-          
+
           if (userAccepts) {
             const searchedItem = context.profile?._searchedItem;
             const wasLookingForSevenSeater = searchedItem?.includes('lugares') || context.profile?.minSeats;
-            
+
             logger.info({ userMessage, searchedItem, wasLookingForSevenSeater }, 'User accepted to answer questions for suggestions');
-            
+
             // Se estava procurando 7 lugares, oferecer alternativas espaçosas
             if (wasLookingForSevenSeater) {
               // Limpar o requisito de minSeats para mostrar alternativas
-              const altProfile = { 
-                ...extracted.extracted, 
-                _waitingForSuggestionResponse: false, 
+              const altProfile = {
+                ...extracted.extracted,
+                _waitingForSuggestionResponse: false,
                 _searchedItem: undefined,
                 minSeats: undefined, // Remover requisito de lugares
                 bodyType: 'suv' as const, // Mostrar SUVs espaçosos como alternativa
                 priorities: [...(extracted.extracted.priorities || []), 'espaco']
               };
-              
+
               return {
                 response: `Ótimo! Vou te mostrar SUVs e opções espaçosas que temos disponíveis! 🚗\n\n💰 Até quanto você pretende investir?`,
                 extractedPreferences: altProfile,
@@ -228,7 +228,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
                 }
               };
             }
-            
+
             // Start asking questions to build profile for suggestions
             return {
               response: `Ótimo! Vou te fazer algumas perguntas rápidas para encontrar o carro ideal pra você. 🚗\n\n💰 Até quanto você pretende investir no carro?`,
@@ -269,7 +269,7 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
       if (hasSpecificModel) {
         const requestedBrand = extracted.extracted.brand?.toLowerCase();
         const requestedModel = extracted.extracted.model?.toLowerCase();
-        
+
         logger.info({
           brand: requestedBrand,
           model: requestedModel
@@ -282,17 +282,17 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
         const matchingResults = result.recommendations.filter(rec => {
           const vehicleBrand = rec.vehicle.brand?.toLowerCase() || '';
           const vehicleModel = rec.vehicle.model?.toLowerCase() || '';
-          
+
           // If user requested a specific brand, vehicle must match that brand
           if (requestedBrand && !vehicleBrand.includes(requestedBrand)) {
             return false;
           }
-          
+
           // If user requested a specific model, vehicle must match that model
           if (requestedModel && !vehicleModel.includes(requestedModel)) {
             return false;
           }
-          
+
           return true;
         });
 
@@ -354,30 +354,30 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
         const availabilityKeywords = ['tem', 'têm', 'disponível', 'disponivel', 'estoque', 'vocês', 'voces'];
         const vehicleTypeKeywords = ['pickup', 'picape', 'suv', 'sedan', 'hatch', 'caminhonete'];
         const messageLower = userMessage.toLowerCase();
-        
+
         const isAvailabilityQuestion = availabilityKeywords.some(kw => messageLower.includes(kw)) &&
           vehicleTypeKeywords.some(kw => messageLower.includes(kw));
-        
+
         if (isAvailabilityQuestion) {
           // Detect which vehicle type user is asking about
           const askedBodyType = vehicleTypeKeywords.find(kw => messageLower.includes(kw));
           const normalizedBodyType = (askedBodyType === 'picape' || askedBodyType === 'caminhonete' ? 'pickup' : askedBodyType) as 'sedan' | 'hatch' | 'suv' | 'pickup' | 'minivan' | undefined;
-          
+
           logger.info({ userMessage, askedBodyType: normalizedBodyType }, 'User asking about vehicle availability');
-          
+
           // Para perguntas de disponibilidade, buscar DIRETO por categoria (sem filtros extras)
           const categoryResults = await vehicleSearchAdapter.search(`${normalizedBodyType}`, {
             bodyType: normalizedBodyType,
             limit: 5,  // Retornar até 5 veículos da categoria
           });
-          
+
           if (categoryResults.length === 0) {
             const categoryName = askedBodyType === 'pickup' || askedBodyType === 'picape' ? 'picapes' :
               askedBodyType === 'suv' ? 'SUVs' :
-              askedBodyType === 'sedan' ? 'sedans' :
-              askedBodyType === 'hatch' ? 'hatches' :
-              `${askedBodyType}s`;
-            
+                askedBodyType === 'sedan' ? 'sedans' :
+                  askedBodyType === 'hatch' ? 'hatches' :
+                    `${askedBodyType}s`;
+
             return {
               response: `No momento não temos ${categoryName} disponíveis no estoque. 😕\n\nQuer que eu busque outras opções para você?`,
               extractedPreferences: { ...extracted.extracted, bodyType: normalizedBodyType, _waitingForSuggestionResponse: true },
@@ -391,14 +391,14 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
               }
             };
           }
-          
+
           // Found vehicles - format for category availability response
           const categoryName = askedBodyType === 'pickup' || askedBodyType === 'picape' ? 'picapes' :
             askedBodyType === 'suv' ? 'SUVs' :
-            askedBodyType === 'sedan' ? 'sedans' :
-            askedBodyType === 'hatch' ? 'hatches' :
-            `${askedBodyType}s`;
-          
+              askedBodyType === 'sedan' ? 'sedans' :
+                askedBodyType === 'hatch' ? 'hatches' :
+                  `${askedBodyType}s`;
+
           const intro = `Temos ${categoryResults.length} ${categoryName} disponíveis! 🚗\n\n`;
           const vehicleList = categoryResults.map((rec, i) => {
             const v = rec.vehicle;
@@ -407,14 +407,14 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
               `   💰 R$ ${v.price.toLocaleString('pt-BR')}\n` +
               `   📍 ${v.mileage.toLocaleString('pt-BR')}km`;
           }).join('\n\n');
-          
+
           const footer = '\n\n💬 Quer saber mais detalhes de algum? Me diz qual te interessou!';
-          
+
           // Update profile with the asked bodyType
           if (normalizedBodyType) {
             updatedProfile.bodyType = normalizedBodyType;
           }
-          
+
           return {
             response: intro + vehicleList + footer,
             extractedPreferences: { ...extracted.extracted, bodyType: normalizedBodyType },
@@ -429,7 +429,7 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
             }
           };
         }
-        
+
         // Regular question - Answer using RAG
         const answer = await this.answerQuestion(userMessage, context, updatedProfile);
 
@@ -455,7 +455,7 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
         const pickupKeywords = ['pickup', 'picape', 'caminhonete', 'caçamba', 'cacamba', 'carga', 'obra', 'material', 'construção', 'construcao', 'carregar', 'entulho'];
         const recentMessages = context.messages.slice(-5).map(m => m.content.toLowerCase()).join(' ');
         const hasPickupInMessages = pickupKeywords.some(kw => recentMessages.includes(kw));
-        
+
         // If pickup detected in messages but not in profile, add it
         if (hasPickupInMessages && !updatedProfile.bodyType) {
           logger.info({ recentMessages: recentMessages.substring(0, 100) }, 'Pickup detected in recent messages, adding to profile');
@@ -466,10 +466,10 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
             updatedProfile.priorities.push('pickup');
           }
         }
-        
+
         // Generate recommendations
         const result = await this.getRecommendations(updatedProfile);
-        
+
         // Se não encontrou pickups, oferecer sugestões alternativas
         if (result.noPickupsFound) {
           const noPickupResponse = `No momento não temos pickups disponíveis no estoque. 🛻
@@ -512,7 +512,7 @@ Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alter
             }
           };
         }
-        
+
         const formattedResponse = await this.formatRecommendations(
           result.recommendations,
           updatedProfile,
@@ -599,7 +599,7 @@ Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alter
    */
   private detectAffirmativeResponse(message: string): boolean {
     const normalized = message.toLowerCase().trim();
-    
+
     // Affirmative patterns
     const affirmativePatterns = [
       /^(sim|s|ss|sss|siiim|siim)$/i,
@@ -640,7 +640,7 @@ Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alter
    */
   private detectNegativeResponse(message: string): boolean {
     const normalized = message.toLowerCase().trim();
-    
+
     const negativePatterns = [
       /^(não|nao|n|nn|nope|nunca)$/i,
       /não\s*(quero|preciso|obrigado)/i,
@@ -812,23 +812,23 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       const pickupKeywords = ['pickup', 'picape', 'caminhonete', 'caçamba', 'cacamba', 'carga', 'obra', 'material', 'construção', 'construcao', 'carregar', 'entulho'];
       const searchTextLower = query.searchText.toLowerCase();
       const hasPickupInText = pickupKeywords.some(kw => searchTextLower.includes(kw));
-      
+
       // Also check profile usoPrincipal and usage for work-related terms
       const usageText = `${profile.usoPrincipal || ''} ${profile.usage || ''}`.toLowerCase();
       const hasWorkUsage = usageText.includes('trabalho') || usageText.includes('obra');
-      
+
       // Check priorities array for any pickup-related terms
       const prioritiesText = (profile.priorities || []).join(' ').toLowerCase();
       const hasPickupInPriorities = pickupKeywords.some(kw => prioritiesText.includes(kw));
-      
+
       const wantsPickup = profile.bodyType === 'pickup' ||
         hasPickupInText ||
         hasPickupInPriorities ||
         (hasWorkUsage && pickupKeywords.some(kw => usageText.includes(kw)));
-      
-      logger.info({ 
-        wantsPickup, 
-        bodyType: profile.bodyType, 
+
+      logger.info({
+        wantsPickup,
+        bodyType: profile.bodyType,
         searchTextLower,
         hasPickupInText,
         usageText,
@@ -866,15 +866,15 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       const requiredSeats = profile.minSeats;
       if (requiredSeats && requiredSeats >= 7) {
         logger.info({ requiredSeats, resultsBeforeFilter: results.length }, 'Filtering for 7+ seat vehicles');
-        
+
         // Filtrar APENAS veículos de 7 lugares
         const sevenSeaterResults = results.filter(rec => {
           const modelLower = (rec.vehicle.model || '').toLowerCase();
           return isSevenSeater(modelLower);
         });
 
-        logger.info({ 
-          requiredSeats, 
+        logger.info({
+          requiredSeats,
           sevenSeaterResults: sevenSeaterResults.length,
           filteredModels: sevenSeaterResults.map(r => r.vehicle.model)
         }, 'Seven seater filter results');
@@ -965,16 +965,27 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
         }
       }
 
+      // Requirements 10.3: Log match scores and reasoning for recommendations
+      const finalRecommendations = filteredResults.slice(0, 5);
       logger.info({
         profileKeys: Object.keys(profile),
-        resultsCount: filteredResults.length,
+        resultsCount: finalRecommendations.length,
         isUberBlack,
         isUberX,
         isFamily,
-        wantsPickup
-      }, 'Generated recommendations');
+        wantsPickup,
+        recommendations: finalRecommendations.map(rec => ({
+          vehicleId: rec.vehicle.id,
+          brand: rec.vehicle.brand,
+          model: rec.vehicle.model,
+          year: rec.vehicle.year,
+          price: rec.vehicle.price,
+          matchScore: rec.matchScore,
+          reasoning: rec.reasoning,
+        })),
+      }, '🎯 Generated recommendations with match scores');
 
-      return { recommendations: filteredResults.slice(0, 5), wantsPickup };
+      return { recommendations: finalRecommendations, wantsPickup };
 
     } catch (error) {
       logger.error({ error, profile }, 'Failed to get recommendations');

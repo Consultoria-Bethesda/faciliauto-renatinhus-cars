@@ -5,6 +5,9 @@ import { DISCLOSURE_MESSAGES } from '../../config/disclosure.messages';
 /**
  * GreetingNode - First interaction with the customer
  * ISO 42001 Compliance: Includes AI disclosure in first message
+ * 
+ * Personalized for Renatinhu's Cars dealership
+ * Requirements: 4.1 - Greet customer and ask for their name
  */
 export async function greetingNode(state: ConversationState): Promise<StateUpdate> {
   logger.info({ conversationId: state.conversationId }, 'GreetingNode: Starting greeting');
@@ -16,27 +19,22 @@ export async function greetingNode(state: ConversationState): Promise<StateUpdat
 
   if (isFirstMessage) {
     // ISO 42001: First time greeting with AI disclosure
+    // Personalized for Renatinhu's Cars - Ask for customer name first
     greetingMessage = `${DISCLOSURE_MESSAGES.INITIAL_GREETING}
 
-🎯 Vou fazer 8 perguntas rápidas para entender suas necessidades e recomendar os melhores veículos para você.
+🚗 Temos *27 veículos* seminovos selecionados esperando por você!
 
-Leva menos de 2 minutos! Vamos começar?
-
-💰 Até quanto você pretende investir no carro?
-
-_Exemplo: 50000 ou 50 mil_`;
+Para começar, *qual é o seu nome?* 😊`;
   } else {
     // Returning or continuing conversation
     greetingMessage = `Olá novamente! 👋
 
-Vamos continuar de onde paramos.
+Que bom ter você de volta na *Renatinhu's Cars*!
 
-💰 Até quanto você pretende investir no carro?
-
-_Exemplo: 50000 ou 50 mil_`;
+Para continuar, *qual é o seu nome?* 😊`;
   }
 
-  // Update state
+  // Update state - transition to discovery node to collect name
   return {
     messages: [
       ...state.messages,
@@ -48,12 +46,12 @@ _Exemplo: 50000 ou 50 mil_`;
     ],
     quiz: {
       ...state.quiz,
-      currentQuestion: 1,
+      currentQuestion: 0, // 0 = waiting for name
       progress: 0,
     },
     graph: {
       ...state.graph,
-      currentNode: 'quiz',
+      currentNode: 'discovery',
       previousNode: 'greeting',
       nodeHistory: [...state.graph.nodeHistory, 'greeting'],
     },

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Este documento define os requisitos para o MVP de produção do assistente de vendas via WhatsApp para a concessionária **Renatinhus Cars** (https://www.renatinhuscars.com.br/). O sistema deve ser capaz de recomendar veículos do estoque de 27 veículos da loja, utilizando IA conversacional para entender as necessidades do cliente e apresentar opções relevantes com links diretos para a página de detalhes de cada veículo.
+Este documento define os requisitos para o MVP de produção do assistente de vendas via WhatsApp para a concessionária **Renatinhu's Cars** (https://www.renatinhuscars.com.br/). O sistema deve ser capaz de recomendar veículos do estoque de 27 veículos da loja, utilizando IA conversacional para entender as necessidades do cliente e apresentar opções relevantes com links diretos para a página de detalhes de cada veículo.
 
 O objetivo é transformar o sistema existente (FaciliAuto) em uma solução pronta para produção, focada especificamente nesta concessionária, garantindo que todas as recomendações apontem para veículos reais disponíveis no site da loja.
 
@@ -10,7 +10,7 @@ O objetivo é transformar o sistema existente (FaciliAuto) em uma solução pron
 
 - **Sistema**: O assistente de vendas FaciliAuto via WhatsApp
 - **Cliente**: Usuário que interage com o bot via WhatsApp buscando veículos
-- **Veículo**: Automóvel disponível no estoque da Renatinhus Cars
+- **Veículo**: Automóvel disponível no estoque da Renatinhu's Cars
 - **Recomendação**: Sugestão de veículo gerada pelo sistema baseada no perfil do cliente
 - **Estoque**: Conjunto de 27 veículos disponíveis na concessionária
 - **URL de Detalhes**: Link para a página "MAIS DETALHES" do veículo no site da loja
@@ -19,12 +19,15 @@ O objetivo é transformar o sistema existente (FaciliAuto) em uma solução pron
 - **Match Score**: Pontuação de 0-100 indicando adequação do veículo ao perfil do cliente
 - **Quiz**: Sequência de perguntas para coletar preferências do cliente
 - **Lead**: Cliente qualificado com interesse demonstrado em veículos
+- **Lead Qualificado**: Lead que expressou interesse específico em um veículo e está pronto para contato do vendedor
+- **Vendedor**: Profissional de vendas da concessionária que recebe os leads qualificados
+- **SELLER_WHATSAPP_NUMBER**: Número de WhatsApp configurado para receber os leads qualificados
 
 ## Requirements
 
 ### Requirement 1: Extração de Dados de Veículos
 
-**User Story:** As a system administrator, I want to extract vehicle data from the Renatinhus Cars website, so that the bot can recommend real vehicles available in stock.
+**User Story:** As a system administrator, I want to extract vehicle data from the Renatinhu's Cars website, so that the bot can recommend real vehicles available in stock.
 
 #### Acceptance Criteria
 
@@ -81,7 +84,7 @@ O objetivo é transformar o sistema existente (FaciliAuto) em uma solução pron
 2. WHEN filtering results THEN the Sistema SHALL apply budget constraints (±20% tolerance)
 3. WHEN ranking results THEN the Sistema SHALL use LLM to evaluate match score based on customer context
 4. WHEN presenting recommendations THEN the Sistema SHALL show top 5 vehicles with reasoning
-5. WHEN displaying a vehicle THEN the Sistema SHALL include the URL to the "MAIS DETALHES" page on the Renatinhus Cars website
+5. WHEN displaying a vehicle THEN the Sistema SHALL include the URL to the "MAIS DETALHES" page on the Renatinhu's Cars website
 
 ### Requirement 6: Formatação de Mensagens WhatsApp
 
@@ -142,3 +145,17 @@ O objetivo é transformar o sistema existente (FaciliAuto) em uma solução pron
 3. WHEN a recommendation is generated THEN the Sistema SHALL log the match scores and reasoning
 4. WHEN an error occurs THEN the Sistema SHALL log the full stack trace and context
 5. WHEN the health endpoint is called THEN the Sistema SHALL return status of all dependencies (DB, LLM, WhatsApp)
+
+### Requirement 11: Encaminhamento de Lead Qualificado para Vendedor
+
+**User Story:** As a sales manager, I want qualified leads to be forwarded to a specific salesperson's WhatsApp number, so that the sales team can follow up with interested customers promptly.
+
+#### Acceptance Criteria
+
+1. WHEN a customer expresses interest in a specific vehicle (e.g., "quero esse", "tenho interesse", "quero agendar visita") THEN the Sistema SHALL capture the lead information
+2. WHEN capturing a lead THEN the Sistema SHALL collect: customer name, customer phone number, vehicle of interest (marca, modelo, ano, preço), and conversation summary
+3. WHEN a lead is captured THEN the Sistema SHALL send a formatted message to the configured salesperson WhatsApp number (SELLER_WHATSAPP_NUMBER)
+4. WHEN formatting the lead message for the seller THEN the Sistema SHALL include: customer name, customer phone (clickable), vehicle details, customer preferences summary, and timestamp
+5. WHEN the lead is successfully sent to the seller THEN the Sistema SHALL confirm to the customer that a salesperson will contact them
+6. IF the lead message fails to send to the seller THEN the Sistema SHALL retry up to 3 times and log the error
+7. WHEN a lead is captured THEN the Sistema SHALL persist it to the database with status "pending"

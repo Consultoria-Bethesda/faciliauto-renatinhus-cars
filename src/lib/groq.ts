@@ -44,7 +44,7 @@ export async function salesChatCompletion(
     temperature?: number;
   }
 ): Promise<string> {
-  const systemPrompt = `Você é um assistente virtual especializado em vendas de veículos usados da FaciliAuto.
+  const systemPrompt = `Você é um assistente virtual especializado em vendas de veículos usados da Renatinhu's Cars.
 
 DIRETRIZES:
 - Seja amigável, profissional e objetivo
@@ -107,11 +107,11 @@ Retorne APENAS a palavra-chave, sem explicação.`,
   });
 
   const intent = result.trim().toUpperCase();
-  
+
   if (intent.includes('QUALIFICAR')) return 'QUALIFICAR';
   if (intent.includes('HUMANO')) return 'HUMANO';
   if (intent.includes('DUVIDA')) return 'DUVIDA';
-  
+
   return 'OUTRO';
 }
 
