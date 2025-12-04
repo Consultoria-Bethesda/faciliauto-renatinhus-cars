@@ -432,5 +432,39 @@ export class MessageFormatterService {
     }
 }
 
+/**
+ * Truncate text with ellipsis if it exceeds max length
+ * 
+ * @param text - Text to truncate
+ * @param maxLength - Maximum length before truncation
+ * @returns Truncated text with ellipsis if needed
+ */
+export function truncateWithEllipsis(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+        return text;
+    }
+    return text.substring(0, maxLength) + '...';
+}
+
+/**
+ * Format response for audio messages with transcription preview
+ * 
+ * Requirements:
+ * - 2.1: Include a brief transcription preview in the response
+ * - 2.2: Format preview with max 100 characters followed by ellipsis if truncated
+ * - 2.3: Prefix response with audio acknowledgment indicator (🎤 emoji)
+ * 
+ * @param transcription - The transcribed text from the audio
+ * @param botResponse - The bot's response to the transcribed text
+ * @returns Formatted response with audio indicator and preview
+ */
+export function formatAudioResponse(transcription: string, botResponse: string): string {
+    // Truncate preview to 100 chars with ellipsis if needed (Requirement 2.2)
+    const preview = truncateWithEllipsis(transcription, 100);
+
+    // Format with audio indicator emoji and quoted preview (Requirements 2.1, 2.3)
+    return `🎤 _"${preview}"_\n\n${botResponse}`;
+}
+
 // Export singleton instance
 export const messageFormatter = new MessageFormatterService();

@@ -627,4 +627,87 @@ Responderemos em até 15 dias úteis, conforme LGPD.`;
       // Don't throw - lead forwarding failure shouldn't break the conversation
     }
   }
+
+  /**
+   * Store audio message in database
+   * Requirements 6.2, 6.3: Store transcription with messageType='audio', no raw audio binary
+   * 
+   * @param phoneNumber - Customer phone number
+   * @param transcription - Transcribed text from audio
+   * @param audioMetadata - Audio metadata (duration, fileSize, etc.)
+   * @param direction - Message direction ('incoming' or 'outgoing')
+   * @returns The created message record
+   */
+  async storeAudioMessage(
+    phoneNumber: string,
+    transcription: string,
+    audioMetadata: {
+      duration?: number;
+      fileSize?: number;
+      language?: string;
+    },
+    direction: 'incoming' | 'outgoing' = 'incoming'
+  ): Promise<{ id: string; conversationId: string }> {
+    try {
+      // Get or create conversation
+      const conversation = await this.getOrCreateConversation(phoneNumber);
+
+      // Create audio message with metadata (no raw audio binary - Requirement 6.3)
+      const message = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction,
+          content: transcription,
+          messageType: 'audio', // Requirement 6.2
+          audioMetadata: {
+            duration: audioMetadata.duration,
+            fileSize: audioMetadata.fileSize,
+            language: audioMetadata.language,
+            transcription: transcription,
+            transcribedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      logger.info({
+        messageId: message.id,
+        conversationId: conversation.id,
+        phoneNumber: phoneNumber.substring(0, 8) + '****',
+        messageType: 'audio',
+        hasTranscription: !!transcription,
+      }, '🎤 Audio message stored');
+
+      return { id: message.id, conversationId: conversation.id };
+    } catch (error) {
+      logger.error({ error, phoneNumber }, '❌ Error storing audio message');
+      throw error;
+    }
+  }
+
+  /**
+   * Store outgoing response message in database
+   * 
+   * @param conversationId - Conversation ID
+   * @param content - Response content
+   * @param messageType - Message type (default: 'text')
+   */
+  async storeOutgoingMessage(
+    conversationId: string,
+    content: string,
+    messageType: string = 'text'
+  ): Promise<void> {
+    try {
+      await prisma.message.create({
+        data: {
+          conversationId,
+          direction: 'outgoing',
+          content,
+          messageType,
+        },
+      });
+    } catch (error) {
+      logger.error({ error, conversationId }, '❌ Error storing outgoing message');
+      // Don't throw - message storage failure shouldn't break the response
+    }
+  }
 }
