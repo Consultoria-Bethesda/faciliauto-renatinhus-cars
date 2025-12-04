@@ -42,6 +42,8 @@ export interface CustomerProfile {
 
   // Constraints
   minYear?: number;
+  maxYear?: number;
+  exactYear?: number; // Ano exato (ex: "Onix 2019" → exactYear: 2019)
   maxKm?: number;
   minSeats?: number; // Número mínimo de lugares (ex: 7 lugares)
 
@@ -59,7 +61,7 @@ export interface CustomerProfile {
 
   // Urgency
   urgency?: 'imediato' | '1mes' | '3meses' | 'flexivel';
-  
+
   // Internal state flags (used for conversation flow)
   _waitingForSuggestionResponse?: boolean; // Indicates we offered suggestions and waiting for user response
   _searchedItem?: string; // The item (model/brand/category) that was not found

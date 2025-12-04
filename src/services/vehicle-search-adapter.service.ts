@@ -14,6 +14,8 @@ interface SearchFilters {
   minPrice?: number;
   budget?: number;  // Budget with ±20% tolerance (Requirements 5.2)
   minYear?: number;
+  maxYear?: number;
+  exactYear?: number;  // Ano exato (ex: "Onix 2019" → exactYear: 2019)
   maxKm?: number;
   bodyType?: string;
   transmission?: string;
@@ -161,6 +163,20 @@ export class VehicleSearchAdapter {
     // Mapear variações de categoria para busca
     const bodyTypeVariations = this.getBodyTypeVariations(filters.bodyType);
 
+    // Build year filter based on exactYear, minYear, maxYear
+    let yearFilter: any = {};
+    if (filters.exactYear) {
+      // Ano exato: busca apenas veículos daquele ano
+      yearFilter = { ano: { equals: filters.exactYear } };
+    } else {
+      // Faixa de anos
+      if (filters.minYear || filters.maxYear) {
+        yearFilter = { ano: {} };
+        if (filters.minYear) yearFilter.ano.gte = filters.minYear;
+        if (filters.maxYear) yearFilter.ano.lte = filters.maxYear;
+      }
+    }
+
     const vehicles = await prisma.vehicle.findMany({
       where: {
         disponivel: true,
@@ -175,7 +191,7 @@ export class VehicleSearchAdapter {
         // Apply other filters
         ...(filters.maxPrice && { preco: { lte: filters.maxPrice } }),
         ...(filters.minPrice && { preco: { gte: filters.minPrice } }),
-        ...(filters.minYear && { ano: { gte: filters.minYear } }),
+        ...yearFilter,
         ...(filters.maxKm && { km: { lte: filters.maxKm } }),
         ...(filters.transmission && { cambio: { equals: filters.transmission, mode: 'insensitive' } }),
       },
@@ -192,6 +208,9 @@ export class VehicleSearchAdapter {
       model: filters.model,
       bodyType: filters.bodyType,
       bodyTypeVariations,
+      exactYear: filters.exactYear,
+      minYear: filters.minYear,
+      maxYear: filters.maxYear,
       found: vehicles.length
     }, 'Direct filter search results');
 

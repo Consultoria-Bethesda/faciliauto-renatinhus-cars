@@ -8,7 +8,7 @@ import { CustomerProfile, VehicleRecommendation, BotMessage } from './state.type
 /**
  * Conversation modes (lifecycle stages)
  */
-export type ConversationMode = 
+export type ConversationMode =
   | 'discovery'           // Understanding client needs (messages 1-2)
   | 'clarification'       // Asking contextual questions (messages 3-6)
   | 'ready_to_recommend'  // Ready to show vehicles
@@ -21,16 +21,16 @@ export type ConversationMode =
 export interface ConversationContext {
   conversationId: string;
   phoneNumber: string;
-  
+
   // Current conversation state
   mode: ConversationMode;
-  
+
   // Incrementally built customer profile
   profile: Partial<CustomerProfile>;
-  
+
   // Conversation history
   messages: BotMessage[];
-  
+
   // Metadata
   metadata: {
     startedAt: Date;
@@ -48,22 +48,22 @@ export interface ConversationContext {
 export interface ConversationResponse {
   // Message to send to user
   response: string;
-  
+
   // Preferences extracted from this interaction
   extractedPreferences: Partial<CustomerProfile>;
-  
+
   // Information still needed
   needsMoreInfo: string[];
-  
+
   // Can we recommend vehicles now?
   canRecommend: boolean;
-  
+
   // Recommendations (if canRecommend is true)
   recommendations?: VehicleRecommendation[];
-  
+
   // Suggested next mode
   nextMode?: ConversationMode;
-  
+
   // Metadata
   metadata?: {
     processingTime?: number;
@@ -80,13 +80,13 @@ export interface ConversationResponse {
 export interface ExtractionResult {
   // Extracted preferences from message
   extracted: Partial<CustomerProfile>;
-  
+
   // Confidence score (0-1)
   confidence: number;
-  
+
   // Brief reasoning for logging/debugging
   reasoning: string;
-  
+
   // Fields that were extracted
   fieldsExtracted: string[];
 }
@@ -97,10 +97,10 @@ export interface ExtractionResult {
 export interface ExtractionConfig {
   // Minimum confidence to accept extraction
   minConfidence?: number;
-  
+
   // Current profile context
   currentProfile?: Partial<CustomerProfile>;
-  
+
   // Additional context (previous messages)
   conversationHistory?: string[];
 }
@@ -111,16 +111,16 @@ export interface ExtractionConfig {
 export interface QuestionGenerationOptions {
   // Current profile
   profile: Partial<CustomerProfile>;
-  
+
   // Fields still missing
   missingFields: string[];
-  
+
   // Prioritize certain fields
   priorityFields?: string[];
-  
+
   // Conversation context
   context?: string;
-  
+
   // Tone adjustment
   tone?: 'friendly' | 'professional' | 'casual';
 }
@@ -131,12 +131,14 @@ export interface QuestionGenerationOptions {
 export interface VehicleSearchQuery {
   // Semantic search text
   searchText: string;
-  
+
   // Hard filters
   filters: {
     maxPrice?: number;
     minPrice?: number;
     minYear?: number;
+    maxYear?: number;
+    exactYear?: number; // Ano exato (ex: "Onix 2019" → exactYear: 2019)
     maxKm?: number;
     minSeats?: number; // Número mínimo de lugares (ex: 7)
     bodyType?: string[];
@@ -145,7 +147,7 @@ export interface VehicleSearchQuery {
     brand?: string[];
     model?: string[];  // Modelo específico (ex: "Compass", "Civic")
   };
-  
+
   // Soft preferences (for scoring)
   preferences: {
     usage?: string;
@@ -153,7 +155,7 @@ export interface VehicleSearchQuery {
     priorities?: string[];
     dealBreakers?: string[];
   };
-  
+
   // Search config
   limit?: number;
   minMatchScore?: number;
@@ -165,19 +167,19 @@ export interface VehicleSearchQuery {
 export interface ReadinessAssessment {
   // Can we recommend vehicles?
   canRecommend: boolean;
-  
+
   // Confidence in current profile (0-100)
   confidence: number;
-  
+
   // Required fields still missing
   missingRequired: string[];
-  
+
   // Optional fields that would improve recommendations
   missingOptional: string[];
-  
+
   // Recommendation
   action: 'continue_asking' | 'recommend_now' | 'ask_confirmation';
-  
+
   // Reason for decision
   reasoning: string;
 }

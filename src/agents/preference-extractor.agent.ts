@@ -43,7 +43,9 @@ CAMPOS POSSÍVEIS:
 - usoPrincipal: "uber" | "familia" | "trabalho" | "viagem" | "outro"
 - tipoUber: "uberx" | "comfort" | "black" (se mencionar Uber/99)
 - bodyType: "sedan" | "suv" | "hatch" | "pickup" | "minivan"
-- minYear: number (ano mínimo aceito)
+- minYear: number (ano mínimo aceito - usar quando "a partir de X")
+- maxYear: number (ano máximo aceito - usar quando "até X")
+- exactYear: number (ano EXATO - usar quando modelo + ano específico, ex: "Onix 2019")
 - maxKm: number (quilometragem máxima)
 - transmission: "manual" | "automatico"
 - fuelType: "gasolina" | "flex" | "diesel" | "hibrido" | "eletrico"
@@ -148,6 +150,42 @@ Saída: {
   "confidence": 0.9,
   "reasoning": "Modelo específico (Civic é da Honda) e cor identificados",
   "fieldsExtracted": ["brand", "model", "color"]
+}
+
+Entrada: "Onix 2019" ou "Quero um Onix 2019"
+Saída: {
+  "extracted": {
+    "brand": "chevrolet",
+    "model": "onix",
+    "exactYear": 2019
+  },
+  "confidence": 0.95,
+  "reasoning": "Modelo específico (Onix é Chevrolet) com ano EXATO especificado",
+  "fieldsExtracted": ["brand", "model", "exactYear"]
+}
+
+Entrada: "Corolla a partir de 2020"
+Saída: {
+  "extracted": {
+    "brand": "toyota",
+    "model": "corolla",
+    "minYear": 2020
+  },
+  "confidence": 0.95,
+  "reasoning": "Modelo específico com ano MÍNIMO especificado",
+  "fieldsExtracted": ["brand", "model", "minYear"]
+}
+
+Entrada: "HB20 até 2018"
+Saída: {
+  "extracted": {
+    "brand": "hyundai",
+    "model": "hb20",
+    "maxYear": 2018
+  },
+  "confidence": 0.95,
+  "reasoning": "Modelo específico com ano MÁXIMO especificado",
+  "fieldsExtracted": ["brand", "model", "maxYear"]
 }
 
 Entrada: "Preciso de uma picape para trabalho" ou "Quero uma pickup" ou "Tem caminhonete?"
@@ -371,6 +409,12 @@ Saída: {
     if (extracted.minYear !== undefined && extracted.minYear !== null) {
       sanitized.minYear = Math.max(2000, Math.min(2025, Math.floor(extracted.minYear)));
     }
+    if (extracted.maxYear !== undefined && extracted.maxYear !== null) {
+      sanitized.maxYear = Math.max(2000, Math.min(2025, Math.floor(extracted.maxYear)));
+    }
+    if (extracted.exactYear !== undefined && extracted.exactYear !== null) {
+      sanitized.exactYear = Math.max(2000, Math.min(2025, Math.floor(extracted.exactYear)));
+    }
 
     // Km validation (0-500000)
     if (extracted.maxKm !== undefined && extracted.maxKm !== null) {
@@ -403,7 +447,7 @@ Saída: {
     }
     if (extracted.model) {
       sanitized.model = extracted.model.trim().toLowerCase();
-      
+
       // Check if model is a known pickup - infer brand and bodyType
       const pickupBrand = this.getPickupBrand(sanitized.model);
       if (pickupBrand) {
@@ -429,7 +473,7 @@ Saída: {
     if (Array.isArray(extracted.dealBreakers)) {
       sanitized.dealBreakers = extracted.dealBreakers.filter(d => typeof d === 'string' && d.length > 0);
     }
-    
+
     // Also copy usoPrincipal and tipoUber if present
     if (extracted.usoPrincipal) {
       sanitized.usoPrincipal = extracted.usoPrincipal;
@@ -473,7 +517,7 @@ Saída: {
    */
   private getPickupBrand(model: string): string | null {
     const modelLower = model.toLowerCase().trim();
-    
+
     const pickupBrandMap: Record<string, string> = {
       'strada': 'fiat',
       'toro': 'fiat',

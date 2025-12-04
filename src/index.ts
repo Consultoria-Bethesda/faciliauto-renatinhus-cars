@@ -8,6 +8,11 @@ import { getLLMProvidersStatus } from './lib/llm-router';
 import webhookRoutes from './routes/webhook.routes';
 import adminRoutes from './routes/admin.routes';
 import debugRoutes from './routes/debug.routes';
+import authRoutes from './routes/auth.routes';
+import leadsRoutes from './routes/leads.routes';
+import metricsRoutes from './routes/metrics.routes';
+import dealershipsRoutes from './routes/dealerships.routes';
+import salesRoutes from './routes/sales.routes';
 
 const app = express();
 
@@ -102,9 +107,21 @@ app.use('/admin', adminRoutes);
 // Debug routes (feature flags, config)
 app.use('/debug', debugRoutes);
 
+// Dashboard API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/leads', leadsRoutes);
+app.use('/api/metrics', metricsRoutes);
+app.use('/api/dealerships', dealershipsRoutes);
+app.use('/api/sales', salesRoutes);
+
 // Dashboard
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Lead Dashboard
+app.get('/leads', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'lead-dashboard.html'));
 });
 
 // Health check - Basic (for load balancers)

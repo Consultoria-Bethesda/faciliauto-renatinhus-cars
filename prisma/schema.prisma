@@ -7,6 +7,54 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Concessionária (Multi-tenant)
+model Dealership {
+  id              String   @id @default(uuid())
+  name            String   // "Renatinhu's Cars"
+  cnpj            String   @unique
+  websiteUrl      String   // "https://www.renatinhuscars.com.br/"
+  logoUrl         String?
+  sellerWhatsApp  String   // Número do vendedor
+  isActive        Boolean  @default(true)
+  
+  // Commission configuration
+  commissionType  String   @default("percentage") // "percentage" | "fixed"
+  commissionRate  Float    @default(2.0)          // 2% default or fixed value in BRL
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  vehicles        Vehicle[]
+  leads           Lead[]
+  users           User[]
+  conversations   Conversation[]
+}
+
+// Usuário do Dashboard
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("seller") // "admin" | "seller" | "partner"
+  dealershipId  String?   // null for admin/partner (access to all)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  dealership    Dealership? @relation(fields: [dealershipId], references: [id])
+  leadEvents    LeadEvent[]
+  
+  @@index([email])
+  @@index([role])
+}
+
 // Veículos no estoque
 model Vehicle {
   id          String   @id @default(uuid())
@@ -20,6 +68,10 @@ model Vehicle {
   carroceria  String   // hatch, sedan, SUV, picape
   combustivel String   @default("Flex")
   cambio      String   @default("Manual")
+  
+  // Multi-tenant
+  dealershipId String?
+  dealership   Dealership? @relation(fields: [dealershipId], references: [id])
   
   // Opcionais básicos
   arCondicionado     Boolean @default(false)
@@ -75,6 +127,10 @@ model Conversation {
   phoneNumber     String
   customerName    String?
   
+  // Multi-tenant
+  dealershipId    String?
+  dealership      Dealership? @relation(fields: [dealershipId], references: [id])
+  
   // Estado da conversa
   status          String   @default("active") // active, qualified, converted, abandoned
   currentStep     String   @default("greeting") // greeting, quiz, recommendation, closed
@@ -93,6 +149,8 @@ model Conversation {
   messages        Message[]
   recommendations Recommendation[]
   leads           Lead[]
+  
+  @@index([dealershipId])
 }
 
 // Eventos/Actions na conversa
@@ -137,6 +195,10 @@ model Recommendation {
 model Lead {
   id                  String   @id @default(uuid())
   
+  // Multi-tenant
+  dealershipId        String?
+  dealership          Dealership? @relation(fields: [dealershipId], references: [id])
+  
   // Dados do cliente
   customerName        String
   customerPhone       String
@@ -154,7 +216,7 @@ model Lead {
   conversationSummary String?
   customerPreferences String?  // JSON string of CustomerProfile
   
-  // Status do lead: pending, sent, failed, contacted
+  // Status do lead: pending, sent, failed, contacted, converted, lost
   status              String   @default("pending")
   sentAt              DateTime?
   contactedAt         DateTime?
@@ -169,11 +231,51 @@ model Lead {
   // Relations
   vehicle             Vehicle      @relation(fields: [vehicleId], references: [id])
   conversation        Conversation? @relation(fields: [conversationId], references: [id])
+  events              LeadEvent[]
+  sale                Sale?
   
   @@index([customerPhone])
   @@index([status])
   @@index([capturedAt])
   @@index([vehicleId])
+  @@index([dealershipId])
+}
+
+// Eventos de timeline do Lead
+model LeadEvent {
+  id            String   @id @default(uuid())
+  leadId        String
+  eventType     String   // "created" | "status_changed" | "note_added"
+  previousValue String?
+  newValue      String?
+  userId        String?
+  timestamp     DateTime @default(now())
+  
+  // Relations
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id])
+  
+  @@index([leadId])
+  @@index([timestamp])
+}
+
+// Registro de venda para tracking de comissões
+model Sale {
+  id               String    @id @default(uuid())
+  leadId           String    @unique
+  saleValue        Float                              // Valor final da venda
+  commissionRate   Float                              // Rate at time of conversion
+  commissionType   String                             // Type at time of conversion
+  commissionAmount Float                              // Calculated commission
+  isPaid           Boolean   @default(false)          // Commission paid to partner
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  
+  // Relations
+  lead             Lead      @relation(fields: [leadId], references: [id])
+  
+  @@index([isPaid])
+  @@index([createdAt])
 }
 
 // Mensagens (log opcional)

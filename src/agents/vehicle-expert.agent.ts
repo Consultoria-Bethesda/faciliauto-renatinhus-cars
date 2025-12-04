@@ -325,13 +325,43 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
           };
         } else {
           // Model/brand not found in inventory - ask if user wants to answer questions for suggestions
-          const searchedItem = extracted.extracted.model || extracted.extracted.brand;
-          const notFoundResponse = `Não temos ${capitalize(searchedItem)} disponível no estoque no momento. 😕
+          const searchedModel = extracted.extracted.model;
+          const searchedBrand = extracted.extracted.brand;
+          const searchedYear = extracted.extracted.exactYear;
 
-Quer responder algumas perguntas rápidas para eu te dar sugestões personalizadas?`;
+          // Build descriptive search item text
+          let searchedItem = '';
+          if (searchedModel) {
+            searchedItem = capitalize(searchedModel);
+            if (searchedYear) {
+              searchedItem += ` ${searchedYear}`;
+            }
+          } else if (searchedBrand) {
+            searchedItem = capitalize(searchedBrand);
+          }
+
+          // Check if we have OTHER years of the same model available
+          let alternativeMessage = '';
+          if (searchedModel && searchedYear) {
+            // Search for same model without year filter
+            const sameModelResults = await vehicleSearchAdapter.search(searchedModel, {
+              model: searchedModel,
+              limit: 3,
+            });
+
+            if (sameModelResults.length > 0) {
+              const availableYears = sameModelResults.map(r => r.vehicle.year).sort((a, b) => b - a);
+              const uniqueYears = [...new Set(availableYears)];
+              alternativeMessage = `\n\nTemos ${capitalize(searchedModel)} de outros anos: ${uniqueYears.join(', ')}. Quer ver essas opções?`;
+            }
+          }
+
+          const notFoundResponse = `Não temos ${searchedItem} disponível no estoque no momento. 😕${alternativeMessage}
+
+${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu te dar sugestões personalizadas?'}`;
 
           return {
-            response: notFoundResponse,
+            response: notFoundResponse.trim(),
             extractedPreferences: { ...extracted.extracted, _waitingForSuggestionResponse: true, _searchedItem: searchedItem },
             needsMoreInfo: [],
             canRecommend: false,
@@ -843,6 +873,8 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       const results = await vehicleSearchAdapter.search(query.searchText, {
         maxPrice: query.filters.maxPrice,
         minYear: query.filters.minYear,
+        maxYear: query.filters.maxYear,
+        exactYear: query.filters.exactYear,  // Ano exato (ex: "Onix 2019")
         bodyType: wantsPickup ? 'pickup' : query.filters.bodyType?.[0],
         brand: query.filters.brand?.[0], // Filtrar por marca quando especificada
         model: query.filters.model?.[0], // Filtrar por modelo quando especificado
@@ -1104,6 +1136,8 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
         maxPrice: profile.budget || profile.budgetMax,
         minPrice: profile.budgetMin,
         minYear: profile.minYear,
+        maxYear: profile.maxYear,
+        exactYear: profile.exactYear,  // Ano exato (ex: "Onix 2019")
         maxKm: profile.maxKm,
         minSeats: profile.minSeats, // Número mínimo de lugares
         bodyType: profile.bodyType ? [profile.bodyType] : undefined,
