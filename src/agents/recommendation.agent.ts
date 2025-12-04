@@ -18,7 +18,9 @@ interface LLMVehicleEvaluation {
 interface SpecificModelResult {
   found: boolean;
   requestedModel: string | null;
+  requestedYear: number | null;
   exactMatches: any[];
+  sameModelOtherYears: any[];  // Mesmo modelo, anos diferentes
   similarSuggestions: VehicleMatch[];
   message: string;
 }
@@ -49,8 +51,10 @@ export class RecommendationAgent {
       if (specificModelResult.requestedModel) {
         logger.info({
           requestedModel: specificModelResult.requestedModel,
+          requestedYear: specificModelResult.requestedYear,
           found: specificModelResult.found,
           exactMatches: specificModelResult.exactMatches.length,
+          sameModelOtherYears: specificModelResult.sameModelOtherYears.length,
         }, 'Specific model requested');
 
         // Se encontrou o modelo exato, retornar com prioridade (top 5)
@@ -58,14 +62,35 @@ export class RecommendationAgent {
           const matches = specificModelResult.exactMatches.slice(0, 5).map((vehicle, index) => ({
             vehicle,
             matchScore: 100 - index * 2, // 100, 98, 96, 94, 92 para os primeiros
-            reasoning: `✅ ${vehicle.marca} ${vehicle.modelo} - Exatamente o que você procura!`,
+            reasoning: `✅ ${vehicle.marca} ${vehicle.modelo} ${vehicle.ano} - Exatamente o que você procura!`,
           }));
 
           await this.saveRecommendations(conversationId, matches);
           return matches;
         }
 
-        // Se não encontrou, retornar sugestões similares
+        // Se não encontrou o ano exato, mas tem o modelo em outros anos
+        if (specificModelResult.sameModelOtherYears.length > 0) {
+          const yearRequested = specificModelResult.requestedYear;
+          const availableYears = [...new Set(specificModelResult.sameModelOtherYears.map(v => v.ano))].sort((a, b) => b - a);
+
+          const matches = specificModelResult.sameModelOtherYears.slice(0, 5).map((vehicle, index) => ({
+            vehicle,
+            matchScore: 90 - index * 2, // 90, 88, 86, 84, 82
+            reasoning: `⚠️ Não temos ${capitalize(specificModelResult.requestedModel!)} ${yearRequested}, mas temos ${vehicle.ano}!`,
+          }));
+
+          logger.info({
+            requestedModel: specificModelResult.requestedModel,
+            requestedYear: yearRequested,
+            availableYears,
+          }, 'Model found in other years');
+
+          await this.saveRecommendations(conversationId, matches);
+          return matches;
+        }
+
+        // Se não encontrou o modelo, retornar sugestões similares
         if (specificModelResult.similarSuggestions.length > 0) {
           await this.saveRecommendations(conversationId, specificModelResult.similarSuggestions);
           return specificModelResult.similarSuggestions;
@@ -167,40 +192,111 @@ export class RecommendationAgent {
   ): Promise<SpecificModelResult> {
     // Detectar modelo específico mencionado pelo usuário
     const requestedModel = await this.detectSpecificModel(answers);
+    const requestedYear = answers.exactYear || null;
 
     if (!requestedModel) {
       return {
         found: false,
         requestedModel: null,
+        requestedYear: null,
         exactMatches: [],
+        sameModelOtherYears: [],
         similarSuggestions: [],
         message: '',
       };
     }
 
-    // Buscar modelo exato no estoque
+    // Buscar modelo exato no estoque (com ano se especificado)
     const exactMatches = this.findExactModelMatches(vehicles, requestedModel, answers);
 
     if (exactMatches.length > 0) {
       return {
         found: true,
         requestedModel,
+        requestedYear,
         exactMatches,
+        sameModelOtherYears: [],
         similarSuggestions: [],
-        message: `Encontramos ${exactMatches.length} ${requestedModel} disponível(is)!`,
+        message: `Encontramos ${exactMatches.length} ${requestedModel}${requestedYear ? ` ${requestedYear}` : ''} disponível(is)!`,
       };
     }
 
-    // Não encontrou - buscar sugestões similares via LLM
+    // Se pediu ano específico e não encontrou, buscar o mesmo modelo em outros anos
+    if (requestedYear) {
+      const sameModelOtherYears = this.findSameModelOtherYears(vehicles, requestedModel, requestedYear, answers);
+
+      if (sameModelOtherYears.length > 0) {
+        const availableYears = [...new Set(sameModelOtherYears.map(v => v.ano))].sort((a, b) => b - a);
+        return {
+          found: false,
+          requestedModel,
+          requestedYear,
+          exactMatches: [],
+          sameModelOtherYears,
+          similarSuggestions: [],
+          message: `Não temos ${capitalize(requestedModel)} ${requestedYear}, mas temos dos anos: ${availableYears.join(', ')}.`,
+        };
+      }
+    }
+
+    // Não encontrou o modelo - buscar sugestões similares via LLM
     const similarSuggestions = await this.findSimilarModels(vehicles, requestedModel, answers);
 
     return {
       found: false,
       requestedModel,
+      requestedYear,
       exactMatches: [],
+      sameModelOtherYears: [],
       similarSuggestions,
-      message: `Infelizmente não temos ${capitalize(requestedModel)} disponível no momento.`,
+      message: `Infelizmente não temos ${capitalize(requestedModel)}${requestedYear ? ` ${requestedYear}` : ''} disponível no momento.`,
     };
+  }
+
+  /**
+   * Busca o mesmo modelo em anos diferentes do solicitado
+   */
+  private findSameModelOtherYears(
+    vehicles: any[],
+    requestedModel: string,
+    requestedYear: number,
+    answers: Record<string, any>
+  ): any[] {
+    const modelLower = requestedModel.toLowerCase();
+    const budget = answers.budget || Infinity;
+    const maxKm = answers.maxKm || 500000;
+
+    return vehicles.filter(v => {
+      // Verificar se modelo ou marca contém o termo buscado
+      const matchesModel = v.modelo.toLowerCase().includes(modelLower) ||
+        v.marca.toLowerCase().includes(modelLower) ||
+        `${v.marca} ${v.modelo}`.toLowerCase().includes(modelLower);
+
+      if (!matchesModel) return false;
+
+      // Excluir o ano exato solicitado (já sabemos que não tem)
+      if (v.ano === requestedYear) return false;
+
+      // Aplicar filtros de orçamento/km (com tolerância de 20% no orçamento)
+      const preco = parseFloat(v.preco);
+      if (preco > budget * 1.2) return false;
+      if (v.km > maxKm) return false;
+
+      return true;
+    }).sort((a, b) => {
+      // Ordenar por proximidade do ano solicitado, depois por preço
+      const diffA = Math.abs(a.ano - requestedYear);
+      const diffB = Math.abs(b.ano - requestedYear);
+      if (diffA !== diffB) return diffA - diffB; // Anos mais próximos primeiro
+
+      // Preço mais alto segundo
+      const precoA = parseFloat(a.preco);
+      const precoB = parseFloat(b.preco);
+      if (precoB !== precoA) return precoB - precoA;
+
+      // Menos km terceiro
+      return a.km - b.km;
+    });
   }
 
   /**

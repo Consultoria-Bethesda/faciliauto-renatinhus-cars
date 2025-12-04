@@ -152,7 +152,7 @@ Saída: {
   "fieldsExtracted": ["brand", "model", "color"]
 }
 
-Entrada: "Onix 2019" ou "Quero um Onix 2019"
+Entrada: "Onix 2019" ou "Quero um Onix 2019" ou "Onix 19" ou "2019 Onix" ou "onix/19"
 Saída: {
   "extracted": {
     "brand": "chevrolet",
@@ -163,6 +163,13 @@ Saída: {
   "reasoning": "Modelo específico (Onix é Chevrolet) com ano EXATO especificado",
   "fieldsExtracted": ["brand", "model", "exactYear"]
 }
+
+IMPORTANTE - VARIAÇÕES DE ANO:
+- "Onix 19" → exactYear: 2019 (ano abreviado)
+- "2019 Onix" → exactYear: 2019 (ano antes do modelo)
+- "Civic 21" → exactYear: 2021
+- "HB20 18" → exactYear: 2018
+- Anos abreviados: 18=2018, 19=2019, 20=2020, 21=2021, 22=2022, 23=2023, 24=2024
 
 Entrada: "Corolla a partir de 2020"
 Saída: {
@@ -381,6 +388,15 @@ Saída: {
     if (extracted.budget !== undefined && extracted.budget !== null) {
       sanitized.budget = Math.max(0, Math.floor(extracted.budget));
     }
+
+    // Normalize short year format (19 → 2019, 24 → 2024)
+    const normalizeYear = (year: number): number => {
+      if (year >= 10 && year <= 99) {
+        // Short format: 19 → 2019, 24 → 2024
+        return year <= 30 ? 2000 + year : 1900 + year;
+      }
+      return year;
+    };
     if (extracted.budgetMin !== undefined && extracted.budgetMin !== null) {
       sanitized.budgetMin = Math.max(0, Math.floor(extracted.budgetMin));
     }
@@ -405,15 +421,18 @@ Saída: {
       sanitized.bodyType = extracted.bodyType;
     }
 
-    // Year validation (2000-2025)
+    // Year validation (2000-2025) with short format normalization
     if (extracted.minYear !== undefined && extracted.minYear !== null) {
-      sanitized.minYear = Math.max(2000, Math.min(2025, Math.floor(extracted.minYear)));
+      const normalized = normalizeYear(Math.floor(extracted.minYear));
+      sanitized.minYear = Math.max(2000, Math.min(2025, normalized));
     }
     if (extracted.maxYear !== undefined && extracted.maxYear !== null) {
-      sanitized.maxYear = Math.max(2000, Math.min(2025, Math.floor(extracted.maxYear)));
+      const normalized = normalizeYear(Math.floor(extracted.maxYear));
+      sanitized.maxYear = Math.max(2000, Math.min(2025, normalized));
     }
     if (extracted.exactYear !== undefined && extracted.exactYear !== null) {
-      sanitized.exactYear = Math.max(2000, Math.min(2025, Math.floor(extracted.exactYear)));
+      const normalized = normalizeYear(Math.floor(extracted.exactYear));
+      sanitized.exactYear = Math.max(2000, Math.min(2025, normalized));
     }
 
     // Km validation (0-500000)
