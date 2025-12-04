@@ -340,25 +340,10 @@ Temos 20 SUVs e 16 sedans no estoque. Para que você pretende usar o carro?"`;
             searchedItem = capitalize(searchedBrand);
           }
 
-          // Check if we have OTHER years of the same model available
-          let alternativeMessage = '';
-          if (searchedModel && searchedYear) {
-            // Search for same model without year filter
-            const sameModelResults = await vehicleSearchAdapter.search(searchedModel, {
-              model: searchedModel,
-              limit: 3,
-            });
+          // Don't show alternative years automatically - just ask if user wants to see other options
+          const notFoundResponse = `Não temos ${searchedItem} disponível no estoque no momento. 😕
 
-            if (sameModelResults.length > 0) {
-              const availableYears = sameModelResults.map(r => r.vehicle.year).sort((a, b) => b - a);
-              const uniqueYears = [...new Set(availableYears)];
-              alternativeMessage = `\n\nTemos ${capitalize(searchedModel)} de outros anos: ${uniqueYears.join(', ')}. Quer ver essas opções?`;
-            }
-          }
-
-          const notFoundResponse = `Não temos ${searchedItem} disponível no estoque no momento. 😕${alternativeMessage}
-
-${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu te dar sugestões personalizadas?'}`;
+Quer ver outras opções do mesmo modelo ou responder algumas perguntas para eu te dar sugestões personalizadas?`;
 
           return {
             response: notFoundResponse.trim(),
@@ -396,7 +381,7 @@ ${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu t
           logger.info({ userMessage, askedBodyType: normalizedBodyType }, 'User asking about vehicle availability');
 
           // Para perguntas de disponibilidade, buscar DIRETO por categoria (sem filtros extras)
-          const categoryResults = await vehicleSearchAdapter.search(`${normalizedBodyType}`, {
+          const categoryResults = await vehicleSearchAdapter.search(`${normalizedBodyType} `, {
             bodyType: normalizedBodyType,
             limit: 5,  // Retornar até 5 veículos da categoria
           });
@@ -406,10 +391,10 @@ ${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu t
               askedBodyType === 'suv' ? 'SUVs' :
                 askedBodyType === 'sedan' ? 'sedans' :
                   askedBodyType === 'hatch' ? 'hatches' :
-                    `${askedBodyType}s`;
+                    `${askedBodyType} s`;
 
             return {
-              response: `No momento não temos ${categoryName} disponíveis no estoque. 😕\n\nQuer que eu busque outras opções para você?`,
+              response: `No momento não temos ${categoryName} disponíveis no estoque. 😕\n\nQuer que eu busque outras opções para você ? `,
               extractedPreferences: { ...extracted.extracted, bodyType: normalizedBodyType, _waitingForSuggestionResponse: true },
               needsMoreInfo: [],
               canRecommend: false,
@@ -427,15 +412,15 @@ ${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu t
             askedBodyType === 'suv' ? 'SUVs' :
               askedBodyType === 'sedan' ? 'sedans' :
                 askedBodyType === 'hatch' ? 'hatches' :
-                  `${askedBodyType}s`;
+                  `${askedBodyType} s`;
 
           const intro = `Temos ${categoryResults.length} ${categoryName} disponíveis! 🚗\n\n`;
           const vehicleList = categoryResults.map((rec, i) => {
             const v = rec.vehicle;
             const emoji = i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : '⭐';
-            return `${emoji} ${v.brand} ${v.model} ${v.year}\n` +
-              `   💰 R$ ${v.price.toLocaleString('pt-BR')}\n` +
-              `   📍 ${v.mileage.toLocaleString('pt-BR')}km`;
+            return `${emoji} ${v.brand} ${v.model} ${v.year} \n` +
+              `   💰 R$ ${v.price.toLocaleString('pt-BR')} \n` +
+              `   📍 ${v.mileage.toLocaleString('pt-BR')} km`;
           }).join('\n\n');
 
           const footer = '\n\n💬 Quer saber mais detalhes de algum? Me diz qual te interessou!';
@@ -504,7 +489,7 @@ ${alternativeMessage ? '' : 'Quer responder algumas perguntas rápidas para eu t
         if (result.noPickupsFound) {
           const noPickupResponse = `No momento não temos pickups disponíveis no estoque. 🛻
 
-Quer responder algumas perguntas rápidas para eu te dar sugestões personalizadas?`;
+Quer responder algumas perguntas rápidas para eu te dar sugestões personalizadas ? `;
 
           return {
             response: noPickupResponse,
@@ -526,11 +511,11 @@ Quer responder algumas perguntas rápidas para eu te dar sugestões personalizad
           const seatsText = result.requiredSeats === 7 ? '7 lugares' : `${result.requiredSeats} lugares`;
           const noSevenSeaterResponse = `No momento não temos veículos de ${seatsText} disponíveis no estoque. 🚗
 
-Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alternativa?`;
+Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alternativa ? `;
 
           return {
             response: noSevenSeaterResponse,
-            extractedPreferences: { ...extracted.extracted, _waitingForSuggestionResponse: true, _searchedItem: `veículo de ${seatsText}` },
+            extractedPreferences: { ...extracted.extracted, _waitingForSuggestionResponse: true, _searchedItem: `veículo de ${seatsText} ` },
             needsMoreInfo: [],
             canRecommend: false,
             nextMode: 'clarification',
@@ -705,9 +690,10 @@ Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alter
 
       // Build context for LLM
       const vehicleContext = relevantVehicles.length > 0
-        ? `VEÍCULOS RELEVANTES NO ESTOQUE:\n${relevantVehicles.map((v, i) =>
+        ? `VEÍCULOS RELEVANTES NO ESTOQUE: \n${relevantVehicles.map((v, i) =>
           `${i + 1}. ${v.vehicle.brand} ${v.vehicle.model} ${v.vehicle.year} - R$ ${v.vehicle.price.toLocaleString('pt-BR')}`
-        ).join('\n')}`
+        ).join('\n')
+        } `
         : 'Nenhum veículo específico encontrado para essa pergunta.';
 
       const conversationSummary = this.summarizeContext(context);
@@ -721,7 +707,7 @@ ${vehicleContext}
 CONTEXTO DA CONVERSA:
 ${conversationSummary}
 
-PERFIL DO CLIENTE (até agora):
+PERFIL DO CLIENTE(até agora):
 ${JSON.stringify(profile, null, 2)}
 
 Responda a pergunta de forma natural e útil, usando exemplos dos veículos quando apropriado.
@@ -764,24 +750,24 @@ ${missingFields.join(', ')}
 CONTEXTO DA CONVERSA:
 ${context || 'Início da conversa'}
 
-TAREFA:
+          TAREFA:
 Gere a PRÓXIMA MELHOR PERGUNTA para fazer ao cliente.
 
-DIRETRIZES:
-1. A pergunta deve ser contextual (baseada no que já sabemos)
-2. Priorize informações essenciais: orçamento, uso, quantidade de pessoas
-3. Seja natural, não robótico
-4. Faça UMA pergunta por vez
-5. Se apropriado, ofereça contexto antes de perguntar
-6. Use emojis com moderação (apenas se natural)
+            DIRETRIZES:
+          1. A pergunta deve ser contextual(baseada no que já sabemos)
+          2. Priorize informações essenciais: orçamento, uso, quantidade de pessoas
+          3. Seja natural, não robótico
+          4. Faça UMA pergunta por vez
+          5. Se apropriado, ofereça contexto antes de perguntar
+          6. Use emojis com moderação(apenas se natural)
 
 EXEMPLO BOM:
-"Legal! Para viagens em família, temos SUVs e sedans muito confortáveis. Quantas pessoas costumam viajar juntas?"
+          "Legal! Para viagens em família, temos SUVs e sedans muito confortáveis. Quantas pessoas costumam viajar juntas?"
 
 EXEMPLO RUIM:
-"Quantas pessoas?"
+          "Quantas pessoas?"
 
-Gere APENAS a pergunta, sem prefácio ou explicação:`;
+Gere APENAS a pergunta, sem prefácio ou explicação: `;
 
       const response = await chatCompletion([
         { role: 'system', content: prompt },
@@ -844,7 +830,7 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
       const hasPickupInText = pickupKeywords.some(kw => searchTextLower.includes(kw));
 
       // Also check profile usoPrincipal and usage for work-related terms
-      const usageText = `${profile.usoPrincipal || ''} ${profile.usage || ''}`.toLowerCase();
+      const usageText = `${profile.usoPrincipal || ''} ${profile.usage || ''} `.toLowerCase();
       const hasWorkUsage = usageText.includes('trabalho') || usageText.includes('obra');
 
       // Check priorities array for any pickup-related terms
@@ -1036,12 +1022,12 @@ Gere APENAS a pergunta, sem prefácio ou explicação:`;
     if (recommendations.length === 0) {
       return `Hmm, não encontrei veículos que atendam exatamente suas preferências. 🤔
 
-Posso ajustar os critérios? Por exemplo:
-- Aumentar o orçamento em 10-20%?
-- Considerar anos um pouco mais antigos?
-- Ver outras categorias de veículos?
+Posso ajustar os critérios ? Por exemplo:
+          - Aumentar o orçamento em 10 - 20 %?
+            - Considerar anos um pouco mais antigos ?
+              - Ver outras categorias de veículos ?
 
-Me diz o que prefere!`;
+                Me diz o que prefere!`;
     }
 
     try {
@@ -1051,13 +1037,13 @@ Me diz o que prefere!`;
       const vehiclesList = vehiclesToShow.map((rec, i) => {
         const v = rec.vehicle;
         const link = v.detailsUrl || v.url;
-        let item = `${i + 1}. ${i === 0 ? '🏆 ' : ''}*${v.brand} ${v.model} ${v.year}*
+        let item = `${i + 1}. ${i === 0 ? '🏆 ' : ''}* ${v.brand} ${v.model} ${v.year}*
    💰 R$ ${v.price.toLocaleString('pt-BR')}
    🛣️ ${v.mileage?.toLocaleString('pt-BR') || '?'} km
-   🚗 ${v.bodyType || 'N/A'}${v.transmission ? ` | ${v.transmission}` : ''}`;
+   🚗 ${v.bodyType || 'N/A'}${v.transmission ? ` | ${v.transmission}` : ''} `;
 
         if (link) {
-          item += `\n   🔗 ${link}`;
+          item += `\n   🔗 ${link} `;
         }
 
         return item;
@@ -1065,11 +1051,11 @@ Me diz o que prefere!`;
 
       const intro = this.generateRecommendationIntro(profile, vehiclesToShow.length);
 
-      const outro = `\n\nQual te interessou mais? Posso dar mais detalhes! 😊
+      const outro = `\n\nQual te interessou mais ? Posso dar mais detalhes! 😊
 
 _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`;
 
-      return `${intro}\n\n${vehiclesList}${outro}`;
+      return `${intro} \n\n${vehiclesList}${outro} `;
 
     } catch (error) {
       logger.error({ error }, 'Failed to format recommendations');
@@ -1077,7 +1063,7 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
       // Fallback simple format
       return `Encontrei ${recommendations.length} veículos para você!\n\n` +
         recommendations.slice(0, 3).map((r, i) =>
-          `${i + 1}. ${r.vehicle.brand} ${r.vehicle.model} - R$ ${r.vehicle.price.toLocaleString('pt-BR')}`
+          `${i + 1}. ${r.vehicle.brand} ${r.vehicle.model} - R$ ${r.vehicle.price.toLocaleString('pt-BR')} `
         ).join('\n');
     }
   }
@@ -1106,12 +1092,12 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
     }
 
     if (profile.budget) {
-      parts.push(`até R$ ${profile.budget.toLocaleString('pt-BR')}`);
+      parts.push(`até R$ ${profile.budget.toLocaleString('pt-BR')} `);
     }
 
-    const criteria = parts.length > 0 ? ` para ${parts.join(', ')}` : '';
+    const criteria = parts.length > 0 ? ` para ${parts.join(', ')} ` : '';
 
-    return `Perfeito! Encontrei ${count} veículo${count > 1 ? 's IDEAIS' : ' IDEAL'}${criteria}:`;
+    return `Perfeito! Encontrei ${count} veículo${count > 1 ? 's IDEAIS' : ' IDEAL'}${criteria}: `;
   }
 
   /**
@@ -1199,7 +1185,7 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
     } else {
       canRecommend = false;
       action = 'continue_asking';
-      reasoning = `Faltam campos essenciais: ${missingRequired.join(', ')}`;
+      reasoning = `Faltam campos essenciais: ${missingRequired.join(', ')} `;
     }
 
     return {
@@ -1226,10 +1212,10 @@ _Digite "reiniciar" para nova busca ou "vendedor" para falar com nossa equipe._`
   private summarizeContext(context: ConversationContext): string {
     const recentMessages = context.messages.slice(-4);
     const summary = recentMessages
-      .map(m => `${m.role === 'user' ? 'Cliente' : 'Você'}: ${m.content}`)
+      .map(m => `${m.role === 'user' ? 'Cliente' : 'Você'}: ${m.content} `)
       .join('\n');
 
-    return `Modo: ${context.mode}\nMensagens trocadas: ${context.metadata.messageCount}\n\nÚltimas mensagens:\n${summary}`;
+    return `Modo: ${context.mode} \nMensagens trocadas: ${context.metadata.messageCount} \n\nÚltimas mensagens: \n${summary} `;
   }
 }
 
