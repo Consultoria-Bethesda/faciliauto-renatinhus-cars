@@ -48,6 +48,11 @@ CAMPOS POSSÍVEIS:
 - exactYear: number (ano EXATO - usar quando modelo + ano específico, ex: "Onix 2019")
 - maxKm: number (quilometragem máxima)
 - transmission: "manual" | "automatico"
+- wantsFinancing: boolean (se mencionar financiamento, parcelar, financiar)
+- downPayment: number (valor de entrada em reais)
+- downPaymentPercentage: number (percentual de entrada, ex: 20)
+- maxInstallment: number (parcela máxima que pode pagar)
+- installmentMonths: number (prazo em meses: 12, 24, 36, 48, 60)
 - fuelType: "gasolina" | "flex" | "diesel" | "hibrido" | "eletrico"
 - color: string
 - brand: string (marca preferida)
@@ -262,6 +267,73 @@ Saída: {
   "confidence": 0.95,
   "reasoning": "Modelo específico (Spin é Chevrolet e tem 7 lugares) ou alternativas de 7 lugares",
   "fieldsExtracted": ["brand", "model", "minSeats"]
+}
+
+Entrada: "Quero financiar" ou "Aceita financiamento?" ou "Posso parcelar?"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente demonstrou interesse em financiamento",
+  "fieldsExtracted": ["wantsFinancing"]
+}
+
+Entrada: "Tenho 10 mil de entrada" ou "Posso dar 10000 de entrada"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true,
+    "downPayment": 10000
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente informou valor de entrada para financiamento",
+  "fieldsExtracted": ["wantsFinancing", "downPayment"]
+}
+
+Entrada: "Quero financiar com 20% de entrada"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true,
+    "downPaymentPercentage": 20
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente informou percentual de entrada",
+  "fieldsExtracted": ["wantsFinancing", "downPaymentPercentage"]
+}
+
+Entrada: "Parcela máxima de 1500" ou "Posso pagar até 1500 por mês"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true,
+    "maxInstallment": 1500
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente informou parcela máxima",
+  "fieldsExtracted": ["wantsFinancing", "maxInstallment"]
+}
+
+Entrada: "Quero financiar em 48 meses" ou "Parcelo em 60x"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true,
+    "installmentMonths": 48
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente informou prazo de financiamento",
+  "fieldsExtracted": ["wantsFinancing", "installmentMonths"]
+}
+
+Entrada: "Tenho 15 mil de entrada e posso pagar parcela de até 1200 em 48 meses"
+Saída: {
+  "extracted": {
+    "wantsFinancing": true,
+    "downPayment": 15000,
+    "maxInstallment": 1200,
+    "installmentMonths": 48
+  },
+  "confidence": 0.95,
+  "reasoning": "Cliente informou detalhes completos do financiamento",
+  "fieldsExtracted": ["wantsFinancing", "downPayment", "maxInstallment", "installmentMonths"]
 }`;
 
   /**
@@ -499,6 +571,30 @@ Saída: {
     }
     if (extracted.tipoUber) {
       sanitized.tipoUber = extracted.tipoUber;
+    }
+
+    // Financing fields validation
+    if (extracted.wantsFinancing !== undefined) {
+      sanitized.wantsFinancing = Boolean(extracted.wantsFinancing);
+    }
+    if (extracted.downPayment !== undefined && extracted.downPayment !== null) {
+      sanitized.downPayment = Math.max(0, Math.floor(extracted.downPayment));
+    }
+    if (extracted.downPaymentPercentage !== undefined && extracted.downPaymentPercentage !== null) {
+      sanitized.downPaymentPercentage = Math.max(0, Math.min(100, Math.floor(extracted.downPaymentPercentage)));
+    }
+    if (extracted.maxInstallment !== undefined && extracted.maxInstallment !== null) {
+      sanitized.maxInstallment = Math.max(0, Math.floor(extracted.maxInstallment));
+    }
+    if (extracted.installmentMonths !== undefined && extracted.installmentMonths !== null) {
+      // Valid installment periods: 12, 24, 36, 48, 60, 72
+      const validMonths = [12, 24, 36, 48, 60, 72];
+      const months = Math.floor(extracted.installmentMonths);
+      // Find closest valid month
+      const closest = validMonths.reduce((prev, curr) =>
+        Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
+      );
+      sanitized.installmentMonths = closest;
     }
 
     return sanitized;

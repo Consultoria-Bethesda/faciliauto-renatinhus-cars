@@ -347,6 +347,25 @@ export class LeadForwardingService {
             if (prefs.transmission) lines.push(`   • Câmbio: ${prefs.transmission}`);
             if (prefs.hasTradeIn) lines.push(`   • Tem carro para troca: Sim`);
             lines.push('');
+
+            // Financing information
+            if (prefs.wantsFinancing) {
+                lines.push('💳 *Financiamento:*');
+                lines.push(`   • Quer financiar: Sim`);
+                if (prefs.downPayment) {
+                    lines.push(`   • Entrada: ${formatPrice(prefs.downPayment)}`);
+                }
+                if (prefs.downPaymentPercentage) {
+                    lines.push(`   • Entrada: ${prefs.downPaymentPercentage}%`);
+                }
+                if (prefs.maxInstallment) {
+                    lines.push(`   • Parcela máxima: ${formatPrice(prefs.maxInstallment)}`);
+                }
+                if (prefs.installmentMonths) {
+                    lines.push(`   • Prazo desejado: ${prefs.installmentMonths} meses`);
+                }
+                lines.push('');
+            }
         }
 
         // Conversation summary

@@ -59,6 +59,13 @@ export interface CustomerProfile {
   // Trade-in
   hasTradeIn?: boolean;
 
+  // Financing / Financiamento
+  wantsFinancing?: boolean; // Cliente quer financiar
+  downPayment?: number; // Valor de entrada em reais
+  downPaymentPercentage?: number; // Percentual de entrada (ex: 20%)
+  maxInstallment?: number; // Parcela máxima que pode pagar
+  installmentMonths?: number; // Prazo desejado em meses (ex: 48, 60)
+
   // Urgency
   urgency?: 'imediato' | '1mes' | '3meses' | 'flexivel';
 

@@ -414,10 +414,65 @@ Quer que eu busque veículos similares ou responder algumas perguntas para eu te
         }
       }
 
-      // 4. Detect if user asked a question (vs just answering)
+      // 4. Check if user mentioned financing and needs to provide down payment
+      const financingKeywords = ['financ', 'parcel', 'entrada', 'prestação', 'crédito', 'credito'];
+      const messageLower = userMessage.toLowerCase();
+      const mentionedFinancing = financingKeywords.some(kw => messageLower.includes(kw));
+
+      if (mentionedFinancing && extracted.extracted.wantsFinancing) {
+        // User wants financing - check if we have down payment info
+        const hasDownPayment = updatedProfile.downPayment || updatedProfile.downPaymentPercentage;
+        const hasInstallmentInfo = updatedProfile.maxInstallment || updatedProfile.installmentMonths;
+
+        if (!hasDownPayment) {
+          logger.info({ userMessage, profile: updatedProfile }, 'User wants financing but no down payment info');
+
+          return {
+            response: `Ótimo, trabalhamos com financiamento! 💳\n\n💰 Qual valor você tem disponível para dar de entrada?\n\n_Pode ser um valor em reais (ex: "10 mil") ou percentual (ex: "20%")_`,
+            extractedPreferences: { ...extracted.extracted, wantsFinancing: true },
+            needsMoreInfo: ['downPayment'],
+            canRecommend: false,
+            nextMode: 'clarification',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.9,
+              llmUsed: 'gpt-4o-mini'
+            }
+          };
+        }
+
+        // Has down payment, check if we need installment info
+        if (!hasInstallmentInfo && !updatedProfile.budget) {
+          logger.info({ userMessage, profile: updatedProfile }, 'User has down payment but no installment info');
+
+          return {
+            response: `Perfeito, anotei a entrada! ✅\n\n📊 Qual o valor máximo de parcela que cabe no seu bolso?\n\n_Ex: "até 1500 por mês" ou "parcela de 1200"_`,
+            extractedPreferences: extracted.extracted,
+            needsMoreInfo: ['maxInstallment'],
+            canRecommend: false,
+            nextMode: 'clarification',
+            metadata: {
+              processingTime: Date.now() - startTime,
+              confidence: 0.9,
+              llmUsed: 'gpt-4o-mini'
+            }
+          };
+        }
+
+        // Has all financing info - log and continue to recommendations
+        logger.info({
+          wantsFinancing: true,
+          downPayment: updatedProfile.downPayment,
+          downPaymentPercentage: updatedProfile.downPaymentPercentage,
+          maxInstallment: updatedProfile.maxInstallment,
+          installmentMonths: updatedProfile.installmentMonths,
+        }, 'Complete financing info captured');
+      }
+
+      // 5. Detect if user asked a question (vs just answering)
       const isUserQuestion = this.detectUserQuestion(userMessage);
 
-      // 5. Route based on question detection
+      // 6. Route based on question detection
       if (isUserQuestion) {
         // Check if it's a question about vehicle availability (e.g., "qual pickup você tem?")
         const availabilityKeywords = ['tem', 'têm', 'disponível', 'disponivel', 'estoque', 'vocês', 'voces'];
@@ -516,7 +571,7 @@ Quer que eu busque veículos similares ou responder algumas perguntas para eu te
         };
       }
 
-      // 6. Assess if we're ready to recommend
+      // 7. Assess if we're ready to recommend
       const readiness = this.assessReadiness(updatedProfile, context);
 
       if (readiness.canRecommend) {
@@ -603,7 +658,7 @@ Quer que eu mostre opções de SUVs ou sedans espaçosos de 5 lugares como alter
         };
       }
 
-      // 7. Continue conversation - ask next contextual question
+      // 8. Continue conversation - ask next contextual question
       const nextQuestion = await this.generateNextQuestion({
         profile: updatedProfile,
         missingFields: readiness.missingRequired,
